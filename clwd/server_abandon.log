@@ -1,0 +1,6 @@
+2023-06-21 22:10:43.445 | SUCCESS  | __main__:main:124 - CLWD: Sending request to abandon current match
+2023-06-21 22:10:43.445 | SUCCESS  | __main__:main:124 - CLWD: Disconnecting from abandoned match server
+2023-06-21 22:10:43.445 | SUCCESS  | __main__:main:124 - CLWD: Sending request to exit matchmaking, marking assigned match as ended
+2023-06-21 22:10:44.048 | SUCCESS  | __main__:main:124 - CLWD: CAsyncWavDataCache:  780 .wavs total 0 bytes, 0.00 % of capacity
+2023-06-21 22:10:45.053 | SUCCESS  | __main__:main:124 - CLWD: Lobby destroyed
+2023-06-21 22:10:45.053 | SUCCESS  | __main__:main:124 - CLWD: Differing lobby received. Lobby: [I:0:0]/Match0/Lobby0 CurrentlyAssigned: [A:1:8256531:23571]/Match82907475/Lobby611039400861279 ConnectedToMatchServer: 0 HasLobby: 0 AssignedMatchEnded: 1

@@ -1,0 +1,8 @@
+loguru~=0.7.0
+python-dotenv~=1.0.0
+rcon~=2.3.9
+psutil~=5.9.5
+PyYAML~=6.0
+schedule~=1.2.0
+PySimpleGUI~=4.60.5
+watchdog~=3.0.0

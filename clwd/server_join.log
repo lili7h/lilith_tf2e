@@ -1,0 +1,28 @@
+2023-06-21 21:44:24.110 | SUCCESS  | __main__:main:124 - CLWD: hello listener!
+2023-06-21 21:44:30.139 | SUCCESS  | __main__:main:124 - CLWD: [PartyClient] Requesting queue for 12v12 Casual Match
+2023-06-21 21:44:30.139 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartyQueueForMatch queued for Party ID 0, Embedded Options 1
+2023-06-21 21:44:30.239 | SUCCESS  | __main__:main:124 - CLWD: [PartyClient] Entering queue for match group 12v12 Casual Match
+2023-06-21 21:44:30.239 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartyQueueForMatch started for Party ID 0, Embedded Options 1
+2023-06-21 21:44:30.742 | SUCCESS  | __main__:main:124 - CLWD: [PartyClient] Joining party 611039517353560
+2023-06-21 21:44:30.742 | SUCCESS  | __main__:main:124 - CLWD: [PartyClient] Re-joining party 611039517353560 we previously had queued messages for.  Triggering full resend of options.
+2023-06-21 21:44:30.742 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartySetOptions queued for Party ID 611039517353560, Overwrite 1
+2023-06-21 21:44:30.742 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartyQueueForMatch successfully sent for Party ID 0, Embedded Options 1
+2023-06-21 21:44:30.742 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartySetOptions started for Party ID 611039517353560, Overwrite 1
+2023-06-21 21:44:31.144 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] PartySetOptions successfully sent for Party ID 611039517353560, Overwrite 1
+2023-06-21 21:44:44.209 | SUCCESS  | __main__:main:124 - CLWD: [PartyClient] Leaving queue for match group 12v12 Casual Match
+2023-06-21 21:44:46.922 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] AcceptLobbyInvite queued for Lobby ID 611039400861279 / Abandoning Match 0000000000000000
+2023-06-21 21:44:46.922 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] AcceptLobbyInvite started for Lobby ID 611039400861279 / Abandoning Match 0000000000000000
+2023-06-21 21:44:47.324 | SUCCESS  | __main__:main:124 - CLWD: Lobby created
+2023-06-21 21:44:47.324 | SUCCESS  | __main__:main:124 - CLWD: Differing lobby received. Lobby: [A:1:8256531:23571]/Match82907475/Lobby8611039400861279 CurrentlyAssigned: [I:0:0]/Match0/Lobby0 ConnectedToMatchServer: 0 HasLobby: 1 AssignedMatchEnded: 0
+2023-06-21 21:44:47.324 | SUCCESS  | __main__:main:124 - CLWD: [ReliableMsg] AcceptLobbyInvite successfully sent for Lobby ID 61103940061279 / Abandoning Match 0000000000000000
+2023-06-21 21:44:47.827 | SUCCESS  | __main__:main:124 - CLWD: Connecting to matchmaking server 169.254.164.51:62616
+2023-06-21 21:44:47.827 | SUCCESS  | __main__:main:124 - CLWD: Connecting to 169.254.164.51:62616
+2023-06-21 21:44:47.827 | SUCCESS  | __main__:main:124 - CLWD: Connecting to matchmaking server 169.254.164.51:62616
+2023-06-21 21:44:47.827 | SUCCESS  | __main__:main:124 - CLWD: Connecting to 169.254.164.51:62616
+2023-06-21 21:44:47.927 | SUCCESS  | __main__:main:124 - CLWD: Connecting to 169.254.164.51:62616...
+2023-06-21 21:44:48.932 | SUCCESS  | __main__:main:124 - CLWD: Connected to 169.254.164.51:62616
+2023-06-21 21:44:52.852 | SUCCESS  | __main__:main:124 - CLWD: Team Fortress
+2023-06-21 21:44:52.852 | SUCCESS  | __main__:main:124 - CLWD: Map: ctf_landfall
+2023-06-21 21:44:52.852 | SUCCESS  | __main__:main:124 - CLWD: Players: 14 / 32
+2023-06-21 21:44:52.852 | SUCCESS  | __main__:main:124 - CLWD: Build: 7961495
+2023-06-21 21:44:52.852 | SUCCESS  | __main__:main:124 - CLWD: Server Number: 14
