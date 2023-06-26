@@ -13,14 +13,14 @@ It will implement a robust data archival system involving compression algorithms
 
 This table will be added to as tasks are planned and as each task evolves.
 
-| Task Name | Start Time | End Time | Stage | Current Focus | Issues | Result |
-| :-------: | :--------: | :------: | :---: | :-----------: | :----: | :----: |
-| Bespoke Path Listener/Watcher | prior to go-live | prior to go-live | Complete. | - | Existing Pythonic packages do not work to solve the task at hand. | `clwd` package |
-| Interface with RCON and Steam API | prior to go-live | prior to go-live | Complete (with issues). | Refactor code and packaging | - | `rc` package |
-| Simple GUI App for PoC | prior to go-live | 25/05/2023 | Complete. | - | - | `gui/lobbyviewer.py` app |
-| Refactor and reform code base for launch platform for MVP | 25/05/2023 | - | In progress. | - | - | - |
-| Convert this to a poetry project for dependency management | - | - | Planned. | - | - | - |
-| Minimum viable product for full product | - | - | Planned. | - | - | - |
+|                         Task Name                          |    Start Time    |     End Time     |          Stage          |        Current Focus        |                              Issues                               |          Result          |
+|:----------------------------------------------------------:|:----------------:|:----------------:|:-----------------------:|:---------------------------:|:-----------------------------------------------------------------:|:------------------------:|
+|               Bespoke Path Listener/Watcher                | prior to go-live | prior to go-live |        Complete.        |              -              | Existing Pythonic packages do not work to solve the task at hand. |      `clwd` package      |
+|             Interface with RCON and Steam API              | prior to go-live | prior to go-live | Complete (with issues). | Refactor code and packaging |                                 -                                 |       `rc` package       |
+|                   Simple GUI App for PoC                   | prior to go-live |    25/05/2023    |        Complete.        |              -              |                                 -                                 | `gui/lobbyviewer.py` app |
+| Refactor and reform code base for launch platform for MVP  |    25/05/2023    |        -         |      In progress.       |              -              |                                 -                                 |            -             |
+| Convert this to a poetry project for dependency management |        -         |        -         |        Planned.         |              -              |                                 -                                 |            -             |
+|          Minimum viable product for full product           |        -         |        -         |        Planned.         |              -              |                                 -                                 |            -             |
 
 # Current in progress
 Currently working on the `gui/lobbyviewer.py` simple GUI class, and it is fairly functional given a complete `data/` directory. 

@@ -1,12 +1,12 @@
-import loguru
-from tf2e.lobby import TF2Player
-from tf2e.main import TF2eLoader
-from rc.proc_reporter import is_hl2_running, get_hl2_pid
-import PySimpleGUI as sg
+from src.modules.tf2e.lobby import TF2Player
+from src.modules.tf2e.main import TF2eLoader
+from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
 from pathlib import Path
-from tf2e import lobby
+from src.modules.tf2e import lobby
 from datetime import datetime
 from typing import Literal
+
+import PySimpleGUI as sg
 
 sg.theme("DarkPurple1")
 
@@ -228,7 +228,7 @@ def main(loader: TF2eLoader, globby: lobby.LobbyWatching, window: sg.Window):
 
 
 if __name__ == "__main__":
-    _data_path = Path("../data/")
+    _data_path = Path("../../../data/")
     client_loader = TF2eLoader(_data_path)
     game_lobby = lobby.LobbyWatching(client_loader.rcon_client, client_loader.steam_client)
     _window = sg.Window("SimpleLobbyViewer", layout=layout, resizable=True)

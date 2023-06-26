@@ -1,9 +1,7 @@
-import threading
-
 from steam import Steam
 from steamid_converter import Converter
 from typing import Self
-from rc.rcon_client import RCONListener, RCONHelper
+from src.modules.rc import RCONListener, RCONHelper
 from threading import Thread, Lock
 
 import os

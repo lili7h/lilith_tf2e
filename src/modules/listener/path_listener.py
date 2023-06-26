@@ -1,5 +1,5 @@
 """
-listener2.py
+path_listener.py
 (C) Lilith 2023
 An adaptation of the functionality that py watchdog promised, but couldn't quite deliver
 A threaded (via multiprocessing) watcher that rather than triggering events, just returns data via a queue

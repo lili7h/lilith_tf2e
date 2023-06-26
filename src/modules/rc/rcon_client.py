@@ -1,13 +1,6 @@
-from steam import Steam
-from dotenv import load_dotenv
-from steamid_converter import Converter
-from typing import Self
 from rcon.source import Client
-from rc.proc_reporter import is_hl2_running
+from src.modules.rc.proc_reporter import is_hl2_running
 
-import os
-import re
-import time
 import loguru
 
 
