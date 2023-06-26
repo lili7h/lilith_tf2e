@@ -5,10 +5,10 @@ hl2_pid: int = 0
 
 def is_hl2_running() -> bool:
     global hl2_pid
-    _pids = list(filter(lambda pid_: psutil.Process(pid_).name() == "hl2.exe", psutil.pids()))
-    if _pids:
-        hl2_pid = _pids[0]
-        return True
+    for proc in psutil.process_iter():
+        if "hl2" in proc.name():
+            hl2_pid = proc.pid
+            return True
     return False
 
 

@@ -102,7 +102,7 @@ headerDataColumn = sg.Column([
 ])
 
 headerLayout = [
-    [sg.Image(source=str(Path("../data/lilith.png")), subsample=16), headerDataColumn]
+    [sg.Image(source=str(Path("../../../data/lilith.png")), subsample=16), headerDataColumn]
 ]
 
 headerFrame = sg.Frame(title="About", layout=headerLayout)
@@ -114,7 +114,7 @@ TF2StatusColumn = sg.Column([
 ])
 
 statusLayout = [
-    [sg.Image(source=str(Path("../data/tf2.png")), subsample=16), TF2StatusColumn]
+    [sg.Image(source=str(Path("../../../data/tf2.png")), subsample=16), TF2StatusColumn]
 ]
 
 statusFrame = sg.Frame(title="Status", layout=statusLayout)

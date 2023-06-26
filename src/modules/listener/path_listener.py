@@ -16,6 +16,10 @@ import loguru
 from multiprocessing import Queue, Process
 from queue import Empty
 from pathlib import Path
+from typing import Callable
+from src.modules.tf2e.lobby import TF2Lobby
+from abc import ABC, abstractmethod
+from enum import Enum
 
 
 def threaded_watcher(
@@ -114,6 +118,60 @@ class Watchdog:
             return self.changes.get_nowait()
         except Empty:
             return None
+
+
+class L2Events(Enum):
+    PLAYER_JOINED = "player_joined"
+    PLAYER_LEFT = "player_left"
+    PLAYER_AUTO_BALANCED = "player_auto_balanced"
+    PLAYER_AUTO_ASSIGNED = "player_auto_assigned"
+    PLAYER_ASSIGNED = "player_assigned"
+    PLAYER_SWITCHED = "player_switched_team"
+    JOINED_GAME = "joined_game"
+    LEFT_GAME = "left_game"
+
+
+class L2:
+    sentinel: Watchdog = None
+    event_handlers: dict[L2Events, Callable] = {
+        L2Events.PLAYER_JOINED: None,
+        L2Events.PLAYER_LEFT: None,
+        L2Events.PLAYER_AUTO_BALANCED: None,
+        L2Events.PLAYER_AUTO_ASSIGNED: None,
+        L2Events.PLAYER_ASSIGNED: None,
+        L2Events.PLAYER_SWITCHED: None,
+        L2Events.JOINED_GAME: None,
+        L2Events.LEFT_GAME: None,
+    }
+    lobby: TF2Lobby = None
+
+    def __init__(self, *args, **kwargs):
+        self.sentinel = Watchdog(*args, **kwargs)
+
+    def init_lobby_data(self, _lobby: TF2Lobby | None) -> None:
+        self.lobby = _lobby
+
+    def register_handler(self, event: L2Events, _fn: Callable) -> None:
+        if type(event) is not L2Events:
+            raise TypeError(f"Event {event} is not of enum L2Events.")
+        if event not in self.event_handlers:
+            raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
+        if self.event_handlers[event] is None:
+            self.event_handlers[event] = _fn
+        else:
+            raise ValueError(f"Event {event} already associated with a handler function "
+                             f"- use reassign_handler to override")
+
+    def reassign_handler(self, event: L2Events, _fn: Callable) -> None:
+        if type(event) is not L2Events:
+            raise TypeError(f"Event {event} is not of enum L2Events.")
+        if event not in self.event_handlers:
+            raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
+        if self.event_handlers[event] is not None:
+            self.event_handlers[event] = _fn
+        else:
+            raise ValueError(f"Event {event} does not have an associated handler function "
+                             f"- use register_handler to set")
 
 
 # Testing purposes only - not intended to function standalone
