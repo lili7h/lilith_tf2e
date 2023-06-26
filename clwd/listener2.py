@@ -66,7 +66,6 @@ def threaded_watcher(
 
         # Bounds check the cursor
         if _nm_cursor > _nm_stat.st_size:
-            # multiprocess safe? no. do I care? no.
             # TODO: Because this is a child process, nothing captures this logging output,
             #       use a process safe logger (i.e. implement LilithLogger)
             _nm_cursor = 0
