@@ -5,7 +5,7 @@ A *CURRENLTY BROKEN WIP* TF2Explorer w/ GUI program written in Python, inspired 
 Currently working on the `gui/lobbyviewer.py` simple GUI class, and it is fairly functional given a complete `data/` directory. 
 
 Example:
-![Functioning simple lobby viewer from a random TF2 lobby I was in](docs/images/gui.lobbyviewer.png)
+![Functioning simple lobby viewer from a random TF2 lobby I was in](docs/pictures/gui.lobbyviewer.png)
 
 **NOTE:**  
 
