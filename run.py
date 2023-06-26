@@ -1,4 +1,2 @@
-import tf2e.main
-
-tf2e.main.main()
+src.modules.tf2e.main.main()
 

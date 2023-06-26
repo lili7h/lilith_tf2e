@@ -1,8 +1,32 @@
 # lilith_tf2e
-A *CURRENLTY BROKEN WIP* TF2Explorer w/ GUI program written in Python, inspired by the Bash09 TF2 Bot Kicker 
+
+`lilith_tf2e` is intended to be a fully-fledged helper tool for interacting with, and recording data from, Team Fortress 2.
+
+In line with the [TF2 Bot Kicker GUI](https://github.com/Bash-09/tf2-bot-kicker-gui) by Bash09, and the plans behind [MegaScatterBomb](https://www.youtube.com/@megascatterbomb)'s MegaAntiCheat and associated helper clients, this is intended to be used by legitimate players to aid with investigation, recording and reporting suspicious players and bots. But this app also aims to be a lot more - it aims to be an effective data collection tool for recording player interactions, stats, scores and games, as well as automatically recording demos.
+
+It will implement a robust data archival system involving compression algorithms (probably python `gzip` library) and an automatic repository upkeep tool to minimise sparse, out of data, and/or unwanted data being collected.
+
+## The design
+`lilith_tf2e` intends to be 100% Python, end-to-end. It uses PySimpleGUI for the user interface (because I wanted to learn it, but the other alternative would be to turn this into a `Flask` server and display it via a web-browser or electron app). It will use `SQLite3` for databasing and data archival. It will use pythonic CRON job schedulers and python package '`schedule`' to run ephemeral/sparse upkeep and maintenance jobs. 
+
+## The timeline
+
+This table will be added to as tasks are planned and as each task evolves.
+
+|                         Task Name                          |    Start Time    |     End Time     |          Stage          |        Current Focus        |                              Issues                               |          Result          |
+|:----------------------------------------------------------:|:----------------:|:----------------:|:-----------------------:|:---------------------------:|:-----------------------------------------------------------------:|:------------------------:|
+|               Bespoke Path Listener/Watcher                | prior to go-live | prior to go-live |        Complete.        |              -              | Existing Pythonic packages do not work to solve the task at hand. |      `clwd` package      |
+|             Interface with RCON and Steam API              | prior to go-live | prior to go-live | Complete (with issues). | Refactor code and packaging |                                 -                                 |       `rc` package       |
+|                   Simple GUI App for PoC                   | prior to go-live |    25/05/2023    |        Complete.        |              -              |                                 -                                 | `gui/lobbyviewer.py` app |
+| Refactor and reform code base for launch platform for MVP  |    25/05/2023    |        -         |      In progress.       |              -              |                                 -                                 |            -             |
+| Convert this to a poetry project for dependency management |        -         |        -         |        Planned.         |              -              |                                 -                                 |            -             |
+|          Minimum viable product for full product           |        -         |        -         |        Planned.         |              -              |                                 -                                 |            -             |
 
 # Current in progress
 Currently working on the `gui/lobbyviewer.py` simple GUI class, and it is fairly functional given a complete `data/` directory. 
+
+Example:
+![Functioning simple lobby viewer from a random TF2 lobby I was in](docs/pictures/gui.lobbyviewer.png)
 
 **NOTE:**  
 
@@ -48,7 +72,7 @@ net_start
 Note that you don't actually need to specify the rcon_password as such, but rather it can be whatever you want, as long as `data/config.yml` corresponds to this.
 
 # The purpose
-The point of this project is to eventually create and end-to-end, front-to-back, GUI, python and SQLite powered application to interface with Team Fortress 2.
+This is intended to be a 100% Python full-stack application to interface with Team Fortress 2.
 This will be achieved via RCON and monitoring the console.log file, and will take advantage of the Steam Web API, and several other external APIs (such as Bash09's cheater list, and 
 megascatterbomb's mcd or anti-cheat (when its released)).
 
