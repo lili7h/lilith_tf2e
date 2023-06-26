@@ -1,7 +1,7 @@
 from steam import Steam
 from steamid_converter import Converter
 from typing import Self
-from src.modules.rc import RCONListener, RCONHelper
+from src.modules.rc.rcon_client import RCONListener, RCONHelper
 from threading import Thread, Lock
 
 import os
@@ -150,8 +150,7 @@ class TF2Lobby:
 
         if changes_made:
             loguru.logger.info(f"Updated lobby with new data.")
-        else:
-            loguru.logger.info(f"Lobby status unchanged.")
+
         return changes_made
 
     @classmethod

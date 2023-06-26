@@ -7,3 +7,5 @@ schedule~=1.2.0
 PySimpleGUI~=4.60.5
 watchdog~=3.0.0
 python-steam-api~=1.0.8
+steamid-converter~=1.0.1
+steam~=1.4.4
