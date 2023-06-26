@@ -17,7 +17,7 @@ from multiprocessing import Queue, Process
 from queue import Empty
 from pathlib import Path
 from typing import Callable
-from src.modules.tf2e.lobby import TF2Lobby
+from src.modules.tf2e.lobby import TF2Lobby, TF2Player
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -133,7 +133,7 @@ class L2Events(Enum):
 
 class L2:
     sentinel: Watchdog = None
-    event_handlers: dict[L2Events, Callable] = {
+    event_handlers: dict[L2Events, Callable[[str, TF2Player | None, TF2Lobby | None], None]] = {
         L2Events.PLAYER_JOINED: None,
         L2Events.PLAYER_LEFT: None,
         L2Events.PLAYER_AUTO_BALANCED: None,
@@ -149,9 +149,27 @@ class L2:
         self.sentinel = Watchdog(*args, **kwargs)
 
     def init_lobby_data(self, _lobby: TF2Lobby | None) -> None:
+        if self.lobby is not None:
+            raise AssertionError("Cannot init lobby data when lobby is not None. (Have you already called this before?)")
         self.lobby = _lobby
 
-    def register_handler(self, event: L2Events, _fn: Callable) -> None:
+    def _raise_event(self, event: L2Events, event_str: str, player: TF2Player | None) -> None:
+        """
+        Doesn't raise an event if self.lobby is still none - need to initialise the lobby value first so it can
+        map player names appropriately.
+        :param event: The L2Event enum instance that was triggered by the incoming console stream
+        :param event_str: The console line that triggered the event instance
+        :param player: The player name mapped to the event, if applicable.
+        :return: None
+        """
+        if self.lobby is not None or (self.lobby is None and event == L2Events.JOINED_GAME):
+            _callable = self.event_handlers[event]
+            if _callable is None:
+                return
+            else:
+                _callable(event_str, player, self.lobby)
+
+    def register_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
         if type(event) is not L2Events:
             raise TypeError(f"Event {event} is not of enum L2Events.")
         if event not in self.event_handlers:
@@ -162,7 +180,7 @@ class L2:
             raise ValueError(f"Event {event} already associated with a handler function "
                              f"- use reassign_handler to override")
 
-    def reassign_handler(self, event: L2Events, _fn: Callable) -> None:
+    def reassign_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
         if type(event) is not L2Events:
             raise TypeError(f"Event {event} is not of enum L2Events.")
         if event not in self.event_handlers:
