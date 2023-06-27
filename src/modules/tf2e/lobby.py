@@ -56,7 +56,7 @@ class TF2Player:
         self.player_type = tf_lobby_debug_player_str.split("type = ")[1].strip().split()[0]
 
     def set_from_status(self, status_player_str: str) -> None:
-
+        pass  # TODO: implement
 
     def __str__(self) -> str:
         return self.personaname

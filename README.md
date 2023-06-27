@@ -4,10 +4,10 @@
 
 In line with the [TF2 Bot Kicker GUI](https://github.com/Bash-09/tf2-bot-kicker-gui) by Bash09, and the plans behind [MegaScatterBomb](https://www.youtube.com/@megascatterbomb)'s MegaAntiCheat and associated helper clients, this is intended to be used by legitimate players to aid with investigation, recording and reporting suspicious players and bots. But this app also aims to be a lot more - it aims to be an effective data collection tool for recording player interactions, stats, scores and games, as well as automatically recording demos.
 
-It will implement a robust data archival system involving compression algorithms (probably python `gzip` library) and an automatic repository upkeep tool to minimise sparse, out of data, and/or unwanted data being collected.
+It will implement a robust data archival system involving compression algorithms (probably python `gzip` library) and an automatic repository upkeep tool to minimise sparse, out of date, and/or unwanted data being collected.
 
 ## The design
-`lilith_tf2e` intends to be 100% Python, end-to-end. It uses PySimpleGUI for the user interface (because I wanted to learn it, but the other alternative would be to turn this into a `Flask` server and display it via a web-browser or electron app). It will use `SQLite3` for databasing and data archival. It will use pythonic CRON job schedulers and python package '`schedule`' to run ephemeral/sparse upkeep and maintenance jobs. 
+`lilith_tf2e` intends to be 100% Python, end-to-end. It uses PySimpleGUI for the user interface (because I wanted to learn it, but the other alternative would be to turn this into a `Flask` server and display it via a web-browser or electron app). It will use `SQLite3` for databasing and data archival. It will use pythonic job schedulers and the python package '`schedule`' to run ephemeral/sparse upkeep and maintenance jobs. 
 
 ## The timeline
 
