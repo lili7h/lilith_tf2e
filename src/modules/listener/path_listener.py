@@ -18,6 +18,7 @@ from queue import Empty
 from pathlib import Path
 from typing import Callable
 from src.modules.tf2e.lobby import TF2Lobby, TF2Player
+from src.modules.listener.status import TF2StatusBlob
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -89,6 +90,7 @@ def threaded_watcher(
                 changes.put(_inst_new_changes, block=True, timeout=None)
 
         except OSError as e:
+            # Need logging here to complain about failure to open the watched path
             continue
 
 
@@ -118,6 +120,44 @@ class Watchdog:
             return self.changes.get_nowait()
         except Empty:
             return None
+
+    def invoke_status(self) -> TF2StatusBlob:
+        """
+        For when the status command is to be invoked in the console, we aggressively munch all output until
+        we have achieved a 'full munch' of the status invocation. Then we return a TF2StatusBlob
+        object which contains all the munched data, as well as a list of the excess data it might have consumed
+        during the munching.
+
+        This tends to occur if other data gets interleaved with the `status` output.
+
+        :return: A TF2StatusBlob instance (which contains the excess data)
+        """
+        _status = TF2StatusBlob()
+        _initial_data = self.get_update()
+        _data_lines: list[str] = []
+        _last_cycle_failed: bool = False
+
+        while not _status.full_munch:
+            if _initial_data is None:
+                _initial_data = self.get_update()
+                # If we pull None back from get_update() twice in a row, sleep for 50ms for every time
+                # None is returned (i.e. give the watcher time to pull data and achieve the Queue lock)
+                if _initial_data is None and _last_cycle_failed:
+                    time.sleep(0.05)
+                elif _initial_data is None:
+                    _last_cycle_failed = True
+                else:
+                    _last_cycle_failed = False
+
+            if not _data_lines and _initial_data is not None:
+                _data_lines = _initial_data.split("\r\n")
+                _initial_data = None
+
+            for line in _data_lines:
+                if _status.munch(line):
+                    break
+
+        return _status
 
 
 class L2Events(Enum):

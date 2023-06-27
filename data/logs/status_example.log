@@ -1,0 +1,32 @@
+] status
+hostname: Valve Matchmaking Server (Sydney srcds1013-syd1 #67)
+version : 7961495/24 7961495 secure
+udp/ip  : 169.254.138.16:59736
+steamid : [A:1:2904748051:23507] (90172957248385043)
+account : not logged in  (No account specified)
+map     : pl_borneo at: 0 x, 0 y, 0 z
+tags    : hidden,increased_maxplayers,payload,valve
+players : 21 humans, 0 bots (32 max)
+edicts  : 904 used of 2048 max
+# userid name                uniqueid            connected ping loss state
+#    376 "ChunionFragz"      [U:1:123858189]     37:35       74    0 active
+#    408 "THE FLYING HEAVY"  [U:1:87983792]      02:04       70    0 active
+#    303 "CannedCat"         [U:1:1024285746]     1:26:58    70    0 active
+#    399 "Bloodmasked"       [U:1:80378183]      17:18       70    0 active
+#    416 "ox"                [U:1:112116659]     00:22       72    0 active
+#    411 "[TopG] Kam"        [U:1:1536942125]    01:49       72    0 active
+#    412 "Furry Lover 2000"  [U:1:1219272849]    01:49       97    0 active
+#    420 "solderweed2121"    [U:1:1467853567]    00:13      151   51 active
+#    413 "thenaturalnonwhite" [U:1:1115521697]   01:14       74    0 active
+#    391 "Josef Gangl"       [U:1:1180966211]    28:54       65   11 active
+#    414 "c1mpleZ_"          [U:1:38367492]      00:28       55    0 active
+#    415 "PivotLime"     `    [U:1:150921345]     00:26       70   65 spawning
+#    392 "♡shiftyvans♡"  [U:1:838717415]     28:20       60    0 active
+#    417 "Lilith"            [U:1:111216987]     00:21       58    0 active
+#    356 "Greg Katani"       [U:1:41954354]      59:35       67    0 active
+#    418 "kreme"             [U:1:116156325]     00:17       58    0 active
+#    405 "sapperman2"        [U:1:124685973]     10:45       82    0 active
+#    395 "Miss Swaggy"       [U:1:1284835482]    22:58       71    0 active
+#    419 "The man himself"   [U:1:1550661956]    00:17      136    7 active
+#    407 "a e r g h"         [U:1:49946951]      03:00       78    0 active
+#    394 "Sully"             [U:1:183194331]     27:12      101    0 active

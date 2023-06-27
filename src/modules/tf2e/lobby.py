@@ -31,6 +31,8 @@ class TF2Player:
     personastateflags: int = None  # Example: 0,
     loccountrycode: str = None  # Example: "US"
 
+    ping: int = None
+    game_time: int = None
     lobby_team: str = None  # Example: "TF_GC_TEAM_DEFENDERS"
     player_type: str = None  # Example: "MATCH_PLAYER"
 
@@ -52,6 +54,9 @@ class TF2Player:
     def set_lobby_status(self, tf_lobby_debug_player_str: str) -> None:
         self.lobby_team = tf_lobby_debug_player_str.split("team = ")[1].strip().split()[0]
         self.player_type = tf_lobby_debug_player_str.split("type = ")[1].strip().split()[0]
+
+    def set_from_status(self, status_player_str: str) -> None:
+
 
     def __str__(self) -> str:
         return self.personaname
