@@ -29,9 +29,12 @@ class RCONListener:
             raise Exception(f"TF2 (or any hl2.exe process) is not running currently, cannot spawn an rcon client.")
 
     def run(self, command: str, *args) -> str:
-        with Client(self.rcon_ip, self.rcon_port, passwd=self.rcon_pword) as h:
-            _response = h.run(command, *args)
-
+        try:
+            with Client(self.rcon_ip, self.rcon_port, passwd=self.rcon_pword) as h:
+                _response = h.run(command, *args)
+        except ConnectionRefusedError:
+            loguru.logger.error(f"Unable to connect to the remote console - have you run `net_start` in TF2?")
+            return ""  # loguru errors will interrupt control flow (raise an exception), this is unreachable.
         return _response
 
 
@@ -43,4 +46,8 @@ class RCONHelper:
 
     @classmethod
     def echo(cls, rcon_listener: RCONListener, message: str) -> str:
-        return rcon_listener.run(message)
+        return rcon_listener.run("echo", message)
+
+    @classmethod
+    def invoke_status(cls, rcon_listener: RCONListener) -> None:
+        rcon_listener.run("status")

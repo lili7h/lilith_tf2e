@@ -1,9 +1,12 @@
 from steam import Steam
 from steamid_converter import Converter
-from typing import Self
+from typing import Self, Any
 from src.modules.rc.rcon_client import RCONListener, RCONHelper
+from src.modules.listener.path_listener import Watchdog
+from src.modules.listener.status import TF2StatusBlob
 from threading import Thread, Lock
 
+import copy
 import os
 import re
 import time
@@ -32,9 +35,13 @@ class TF2Player:
     loccountrycode: str = None  # Example: "US"
 
     ping: int = None
+    player_id: str = None
     game_time: int = None
+    player_state: str = None
     lobby_team: str = None  # Example: "TF_GC_TEAM_DEFENDERS"
     player_type: str = None  # Example: "MATCH_PLAYER"
+
+    profile_init: bool = None
 
     def __init__(self, steam_client: Steam, steam_id3: str):
         self.steamID = Converter.to_steamID(steam_id3)
@@ -42,6 +49,7 @@ class TF2Player:
         self.steamID64 = Converter.to_steamID64(steam_id3)
         self.steam = steam_client
         self._lookup_profile()
+        self.profile_init = True
 
     def _lookup_profile(self):
         _response = self.steam.users.get_user_details(self.steamID64)['player']
@@ -55,8 +63,20 @@ class TF2Player:
         self.lobby_team = tf_lobby_debug_player_str.split("team = ")[1].strip().split()[0]
         self.player_type = tf_lobby_debug_player_str.split("type = ")[1].strip().split()[0]
 
-    def set_from_status(self, status_player_str: str) -> None:
-        pass  # TODO: implement
+    # 0: full str, 1: userid, 2: Quote delimited username, 3: SteamID3, 4: time in server, 5: ping, 6: loss, 7: state
+    def set_from_status(self, status_player_match_groups: tuple[Any, ...]) -> None:
+        _groups = status_player_match_groups
+        self.player_id = _groups[1]
+        # self.personaname = _groups[2][1:len(self.personaname) - 1]
+        self.steamID3 = _groups[3]
+        self.steamID = Converter.to_steamID(self.steamID3)
+        self.steamID64 = Converter.to_steamID64(self.steamID3)
+        self.game_time = _groups[4]
+        self.ping = _groups[5]
+        self.player_state = _groups[6]
+
+        if not self.profile_init:
+            self._lookup_profile()
 
     def __str__(self) -> str:
         return self.personaname
@@ -71,20 +91,32 @@ class TF2Lobby:
     pending_players: int = None
     players: list[TF2Player] = None
     exists: bool = None
+    map: str = None
+    server_id: str = None
+    address: tuple[str, int] = None
+
+    rcon: RCONListener = None
+    steam_: Steam = None
+    listener: Watchdog = None
 
     def __init__(self, players: list[TF2Player], lobby_data: str) -> None:
+
         self.lobby_lock = Lock()
         self.players = players
         self.lobby_id = lobby_data.split("ID:")[1].split()[0]
         self.player_count = int(lobby_data.split(self.lobby_id)[1].strip().split()[0])
         self.pending_players = int(lobby_data.split(",")[1].strip().split()[0])
         self.exists = self.lobby_id != "0000000000000000"
-        self.rcon = None
-        self.steam_ = None
+        self.map = "Unknown"
+        self.server_id = "Unknown"
+        self.address = ("Unknown", 0)
 
     def set_iclients(self, rcon_client, steam_client) -> None:
         self.rcon = rcon_client
         self.steam_ = steam_client
+
+    def connect_listener(self, listener: Watchdog) -> None:
+        self.listener = listener
 
     def update(self) -> bool:
         data = RCONHelper.get_lobby_data(self.rcon)
@@ -101,7 +133,6 @@ class TF2Lobby:
                     loguru.logger.info(f"No longer in valid lobby.")
                 return True
             else:
-                loguru.logger.info(f"Not in valid lobby.")
                 return False
         # flag to track if modifications have been made for the return value of this function
         changes_made: bool = False
@@ -158,6 +189,48 @@ class TF2Lobby:
 
         return changes_made
 
+    def update_from_status(self):
+        self.listener.get_update()
+        RCONHelper.invoke_status(self.rcon)
+        status: TF2StatusBlob | None = self.listener.invoke_status()
+        if status is None:
+            if self.exists:
+                with self.lobby_lock:
+                    self.players = []
+                    self.lobby_id = "0000000000000000"
+                    self.player_count = 0
+                    self.pending_players = 0
+                    self.exists = False
+                    loguru.logger.info(f"No longer in valid lobby.")
+            loguru.logger.info("No lobby.")
+            return
+        self.listener.changes.put("\n".join(status.excess_junk), block=True, timeout=None)
+        _existing_sid3 = [(x.steamID3, x) for x in self.players]
+
+        for player_match in status.players:
+            _found_player: bool = False
+            _groups = player_match.groups()
+
+            _sid3 = _groups[3].strip()
+            for _exist_sid3, _player in _existing_sid3:
+                if _sid3 == _exist_sid3:
+                    _player.set_from_status(_groups)
+                    _found_player = True
+
+            _to_add = []
+            if not _found_player:
+                _new_player = TF2Player(self.steam_, _sid3)
+                _new_player.set_from_status(_groups)
+                with self.lobby_lock:
+                    self.players.append(_new_player)
+
+        with self.lobby_lock:
+            self.map = status.status_map.strip().split()[0]
+            self.address = (status.status_udp.split(":")[0], int(status.status_udp.split(":")[1]))
+            self.server_id = status.status_sid
+            self.player_count = status.num_players
+
+
     @classmethod
     def spawn_from_tf_lobby_debug(cls, tf_lobby_debug_str: str, _steam: Steam | None = None) -> Self:
         if tf_lobby_debug_str.strip() == "Failed to find lobby shared object":
@@ -187,7 +260,7 @@ class LobbyWatching:
         self.steam = steam_iclient
         self.lobby = TF2Lobby.spawn_from_tf_lobby_debug(RCONHelper.get_lobby_data(self.rcon))
         self.lobby.set_iclients(self.rcon, self.steam)
-        self.schedule_job = schedule.every(5).seconds.do(job_func=self.lobby.update)
+        self.schedule_job = schedule.every(8).seconds.do(job_func=self.lobby.update_from_status)
         self._run_scheduler = True
         self.schedule_proc = Thread(
             target=self._manage_scheduler,

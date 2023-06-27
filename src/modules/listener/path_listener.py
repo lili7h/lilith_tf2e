@@ -8,6 +8,7 @@ and you are looking to grab the appended data as it is appended.
 
 I.e. something like a `console.log` file that grows throughout the process lifetime of an application
 """
+import datetime
 import multiprocessing
 import time
 import os
@@ -17,8 +18,9 @@ from multiprocessing import Queue, Process
 from queue import Empty
 from pathlib import Path
 from typing import Callable
-from src.modules.tf2e.lobby import TF2Lobby, TF2Player
+# from src.modules.tf2e.lobby import TF2Lobby, TF2Player
 from src.modules.listener.status import TF2StatusBlob
+from src.modules.rc.rcon_client import RCONListener
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -121,7 +123,7 @@ class Watchdog:
         except Empty:
             return None
 
-    def invoke_status(self) -> TF2StatusBlob:
+    def invoke_status(self) -> TF2StatusBlob | None:
         """
         For when the status command is to be invoked in the console, we aggressively munch all output until
         we have achieved a 'full munch' of the status invocation. Then we return a TF2StatusBlob
@@ -133,29 +135,31 @@ class Watchdog:
         :return: A TF2StatusBlob instance (which contains the excess data)
         """
         _status = TF2StatusBlob()
+        _time_started: datetime.datetime = datetime.datetime.now()
         _initial_data = self.get_update()
         _data_lines: list[str] = []
-        _last_cycle_failed: bool = False
 
         while not _status.full_munch:
             if _initial_data is None:
                 _initial_data = self.get_update()
                 # If we pull None back from get_update() twice in a row, sleep for 50ms for every time
                 # None is returned (i.e. give the watcher time to pull data and achieve the Queue lock)
-                if _initial_data is None and _last_cycle_failed:
-                    time.sleep(0.05)
-                elif _initial_data is None:
-                    _last_cycle_failed = True
-                else:
-                    _last_cycle_failed = False
+
+            if _initial_data is None:
+                time.sleep(0.05)
+                _time = datetime.datetime.now() - _time_started
+                if _time.seconds > 5:
+                    return None
 
             if not _data_lines and _initial_data is not None:
-                _data_lines = _initial_data.split("\r\n")
+                _data_lines = _initial_data.split("\n")
                 _initial_data = None
 
             for line in _data_lines:
                 if _status.munch(line):
                     break
+
+            _data_lines = []
 
         return _status
 
@@ -171,65 +175,65 @@ class L2Events(Enum):
     LEFT_GAME = "left_game"
 
 
-class L2:
-    sentinel: Watchdog = None
-    event_handlers: dict[L2Events, Callable[[str, TF2Player | None, TF2Lobby | None], None]] = {
-        L2Events.PLAYER_JOINED: None,
-        L2Events.PLAYER_LEFT: None,
-        L2Events.PLAYER_AUTO_BALANCED: None,
-        L2Events.PLAYER_AUTO_ASSIGNED: None,
-        L2Events.PLAYER_ASSIGNED: None,
-        L2Events.PLAYER_SWITCHED: None,
-        L2Events.JOINED_GAME: None,
-        L2Events.LEFT_GAME: None,
-    }
-    lobby: TF2Lobby = None
-
-    def __init__(self, *args, **kwargs):
-        self.sentinel = Watchdog(*args, **kwargs)
-
-    def init_lobby_data(self, _lobby: TF2Lobby | None) -> None:
-        if self.lobby is not None:
-            raise AssertionError("Cannot init lobby data when lobby is not None. (Have you already called this before?)")
-        self.lobby = _lobby
-
-    def _raise_event(self, event: L2Events, event_str: str, player: TF2Player | None) -> None:
-        """
-        Doesn't raise an event if self.lobby is still none - need to initialise the lobby value first so it can
-        map player names appropriately.
-        :param event: The L2Event enum instance that was triggered by the incoming console stream
-        :param event_str: The console line that triggered the event instance
-        :param player: The player name mapped to the event, if applicable.
-        :return: None
-        """
-        if self.lobby is not None or (self.lobby is None and event == L2Events.JOINED_GAME):
-            _callable = self.event_handlers[event]
-            if _callable is None:
-                return
-            else:
-                _callable(event_str, player, self.lobby)
-
-    def register_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
-        if type(event) is not L2Events:
-            raise TypeError(f"Event {event} is not of enum L2Events.")
-        if event not in self.event_handlers:
-            raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
-        if self.event_handlers[event] is None:
-            self.event_handlers[event] = _fn
-        else:
-            raise ValueError(f"Event {event} already associated with a handler function "
-                             f"- use reassign_handler to override")
-
-    def reassign_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
-        if type(event) is not L2Events:
-            raise TypeError(f"Event {event} is not of enum L2Events.")
-        if event not in self.event_handlers:
-            raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
-        if self.event_handlers[event] is not None:
-            self.event_handlers[event] = _fn
-        else:
-            raise ValueError(f"Event {event} does not have an associated handler function "
-                             f"- use register_handler to set")
+# class L2:
+#     sentinel: Watchdog = None
+#     event_handlers: dict[L2Events, Callable[[str, TF2Player | None, TF2Lobby | None], None]] = {
+#         L2Events.PLAYER_JOINED: None,
+#         L2Events.PLAYER_LEFT: None,
+#         L2Events.PLAYER_AUTO_BALANCED: None,
+#         L2Events.PLAYER_AUTO_ASSIGNED: None,
+#         L2Events.PLAYER_ASSIGNED: None,
+#         L2Events.PLAYER_SWITCHED: None,
+#         L2Events.JOINED_GAME: None,
+#         L2Events.LEFT_GAME: None,
+#     }
+#     lobby: TF2Lobby = None
+#
+#     def __init__(self, *args, **kwargs):
+#         self.sentinel = Watchdog(*args, **kwargs)
+#
+#     def init_lobby_data(self, _lobby: TF2Lobby | None) -> None:
+#         if self.lobby is not None:
+#             raise AssertionError("Cannot init lobby data when lobby is not None. (Have you already called this before?)")
+#         self.lobby = _lobby
+#
+#     def _raise_event(self, event: L2Events, event_str: str, player: TF2Player | None) -> None:
+#         """
+#         Doesn't raise an event if self.lobby is still none - need to initialise the lobby value first so it can
+#         map player names appropriately.
+#         :param event: The L2Event enum instance that was triggered by the incoming console stream
+#         :param event_str: The console line that triggered the event instance
+#         :param player: The player name mapped to the event, if applicable.
+#         :return: None
+#         """
+#         if self.lobby is not None or (self.lobby is None and event == L2Events.JOINED_GAME):
+#             _callable = self.event_handlers[event]
+#             if _callable is None:
+#                 return
+#             else:
+#                 _callable(event_str, player, self.lobby)
+#
+#     def register_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
+#         if type(event) is not L2Events:
+#             raise TypeError(f"Event {event} is not of enum L2Events.")
+#         if event not in self.event_handlers:
+#             raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
+#         if self.event_handlers[event] is None:
+#             self.event_handlers[event] = _fn
+#         else:
+#             raise ValueError(f"Event {event} already associated with a handler function "
+#                              f"- use reassign_handler to override")
+#
+#     def reassign_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
+#         if type(event) is not L2Events:
+#             raise TypeError(f"Event {event} is not of enum L2Events.")
+#         if event not in self.event_handlers:
+#             raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
+#         if self.event_handlers[event] is not None:
+#             self.event_handlers[event] = _fn
+#         else:
+#             raise ValueError(f"Event {event} does not have an associated handler function "
+#                              f"- use register_handler to set")
 
 
 # Testing purposes only - not intended to function standalone
@@ -237,15 +241,21 @@ def main():
     _path = Path("D:\\Steam\\steamapps\\common\\Team Fortress 2\\tf\\console.log")
     _watcher = Watchdog(path=_path)
     _watcher.begin()
-    while True:
-        time.sleep(0.1)
-        # Todo: batch updates better - perhaps by dumping whole lists of strings at once, rather than by line?
-        _data = _watcher.get_update()
-        if _data is not None:
-            for line in _data.split("\n"):
-                if not line:
-                    continue
-                loguru.logger.success(f"CLWD: {line}")
+    _rcon_handle = RCONListener(pword="lilith_is_hot")
+    _rcon_handle.spawn_client()
+    # _watcher.get_update()
+    _rcon_handle.run("status")
+    _status = _watcher.invoke_status()
+
+    for player_match in _status.players:
+        _groups = player_match.groups()
+        print("Player:", _groups[2][1:len(_groups[2])-1], _groups[5])
+
+    print("Num players:", _status.num_players)
+    print("Map:", _status.status_map)
+    print("Server:", _status.status_udp)
+
+    print(_status.excess_junk)
 
 
 if __name__ == "__main__":

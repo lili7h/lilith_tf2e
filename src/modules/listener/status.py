@@ -53,6 +53,8 @@ class TF2StatusBlob:
         :param next_line: the next line of terminal output
         :return: true if no more `status` data expected
         """
+        if not next_line.strip():
+            return self.full_munch
         if not self.status_hst and next_line.startswith(self.HST_PREFIX):
             self.status_hst = next_line[self.PREFIX_LEN:]
         elif not self.status_ver and next_line.startswith(self.VER_PREFIX):
@@ -86,16 +88,15 @@ class TF2StatusBlob:
             _match = re.search(self.PLAYER_LIST_LINE_REGEX, next_line)
             if _match is not None:
                 self.players.append(_match)
-                if len(self.players) > self.num_players:
-                    print(f"Extra player match on: {next_line}")
+                if self.num_players is not None and len(self.players) > int(self.num_players):
+                    print(f"Extra player match on: {next_line}. Found {len(self.players)} / {int(self.num_players)}")
                     raise ValueError("Matched more players than expected. What is happening?")
             else:
                 self.excess_junk.append(next_line)
         else:
             self.excess_junk.append(next_line)
 
-        if len(self.players) == self.num_players and \
-                len(self.players) <= self.max_players and \
+        if str(len(self.players)) == self.num_players and \
                 self.munched_player_sep and \
                 None not in [
                     self.status_hst,
@@ -105,7 +106,6 @@ class TF2StatusBlob:
                     self.status_acc,
                     self.status_map,
                     self.status_tag,
-                    self.status_pls,
                     self.status_eds
                 ]:
             self.full_munch = True

@@ -88,6 +88,20 @@ lobbyPlayersLayout = [
     [t1PlayerList, t2PlayerList]
 ]
 
+# TODO: Work on this
+playerMenuListingColumn1 = sg.Column([
+    [sg.Text("-undefined-", key="playerNamePlateN", font='Any 14')],
+    [sg.Text("-undefined-", key="playerProfilePlateN", font='Any 12')]
+])
+
+playerMenuListing = [
+    sg.Image(source=str(Path("../../../data/images/tf2.png")), subsample=32),
+    playerMenuListingColumn1,
+    sg.Text("-undefined-", key="playerPingPlateN", font='Any 12', text_color="green")
+]
+
+
+
 playerListingFrame = sg.Frame(
     title="Players in Lobby",
     layout=lobbyPlayersLayout,
@@ -102,7 +116,7 @@ headerDataColumn = sg.Column([
 ])
 
 headerLayout = [
-    [sg.Image(source=str(Path("../../../data/lilith.png")), subsample=16), headerDataColumn]
+    [sg.Image(source=str(Path("../../../data/images/lilith.png")), subsample=16), headerDataColumn]
 ]
 
 headerFrame = sg.Frame(title="About", layout=headerLayout)
@@ -114,7 +128,7 @@ TF2StatusColumn = sg.Column([
 ])
 
 statusLayout = [
-    [sg.Image(source=str(Path("../../../data/tf2.png")), subsample=16), TF2StatusColumn]
+    [sg.Image(source=str(Path("../../../data/images/tf2.png")), subsample=16), TF2StatusColumn]
 ]
 
 statusFrame = sg.Frame(title="Status", layout=statusLayout)
@@ -231,6 +245,7 @@ if __name__ == "__main__":
     _data_path = Path("../../../data/")
     client_loader = TF2eLoader(_data_path)
     game_lobby = lobby.LobbyWatching(client_loader.rcon_client, client_loader.steam_client)
+    game_lobby.lobby.connect_listener(client_loader.log_listener)
     _window = sg.Window("SimpleLobbyViewer", layout=layout, resizable=True)
 
     main(client_loader, game_lobby, _window)
