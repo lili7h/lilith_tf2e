@@ -1,4 +1,4 @@
-from src.modules.tf2e.lobby import TF2Player
+from src.modules.tf2e.lobby import TF2Player, Neutral
 from src.modules.tf2e.main import TF2eLoader
 from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
 from pathlib import Path
@@ -143,19 +143,26 @@ def create_player_tile(player: TF2Player) -> sg.Frame:
         ]
     ])
 
-
-    sg.Combo(readonly=True, key=f"playerAssociationCombo{player.steamID64}", font="Any 14")
-
     # TODO: call async image download if player.pfp_cached == False, leave image as default TF2 logo and set cached to
     #       true. When player updates occur, we will check for if the cached image exists locally on the drive yet,
     #       and update the image source then.
     player_tile_plate = [
-        sg.Image(
-            source=str(Path("../../../data/images/tf2.png")), subsample=32, key=f"playerIconPlate{player.steamID64}"
-        ),
-        player_tile_text_plate,
-        sg.Text("-undefined-", key="playerPingPlateN", font='Any 12', text_color="green")
+        [
+            sg.Image(
+                source=str(Path("../../../data/images/tf2.png")), subsample=32, key=f"playerIconPlate{player.steamID64}"
+            ),
+            player_tile_text_plate,
+            sg.Combo(
+                readonly=True, key=f"playerAssociationCombo{player.steamID64}", font="Any 14",
+                values=TF2Player.possible_associations, default_value=player.association, enable_events=True
+            )
+        ]
     ]
+
+    _frame = sg.Frame(layout=player_tile_plate, title=f"{player.loccountrycode}",
+                      title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief=sg.RELIEF_RIDGE)
+
+    return _frame
 
 
 def update_player_details(window: sg.Window, team: Literal[1, 2], player: TF2Player) -> None:

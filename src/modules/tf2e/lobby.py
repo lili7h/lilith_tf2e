@@ -23,6 +23,9 @@ class PlayerAssociation(ABC):
         self.label = label
         self.color = color
 
+    def __str__(self) -> str:
+        return self.__class__.__name__
+
     @abstractmethod
     def related_message(self) -> str:
         pass
@@ -92,6 +95,16 @@ class Phobic(PlayerAssociation):
 
 
 class TF2Player:
+    possible_associations: list[PlayerAssociation] = [
+        Cheater(),
+        Suspicious(),
+        Bot(),
+        Phobic(),
+        Neutral(),
+        Trusted(),
+        Friend()
+    ]
+
     steam: Steam = None
     steamID: str = None
     steamID3: str = None
@@ -119,6 +132,7 @@ class TF2Player:
     player_type: str = None  # Example: "MATCH_PLAYER"
 
     profile_init: bool = None
+    association: PlayerAssociation = None
 
     def __init__(self, steam_client: Steam, steam_id3: str):
         self.steamID = Converter.to_steamID(steam_id3)
@@ -127,6 +141,9 @@ class TF2Player:
         self.steam = steam_client
         self._lookup_profile()
         self.profile_init = True
+
+        # TODO: Pull data from DB
+        self.association = Neutral()
 
     def _lookup_profile(self):
         _response = self.steam.users.get_user_details(self.steamID64)['player']
