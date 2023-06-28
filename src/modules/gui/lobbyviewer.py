@@ -88,20 +88,6 @@ lobbyPlayersLayout = [
     [t1PlayerList, t2PlayerList]
 ]
 
-# TODO: Work on this
-playerMenuListingColumn1 = sg.Column([
-    [sg.Text("-undefined-", key="playerNamePlateN", font='Any 14')],
-    [sg.Text("-undefined-", key="playerProfilePlateN", font='Any 12')]
-])
-
-playerMenuListing = [
-    sg.Image(source=str(Path("../../../data/images/tf2.png")), subsample=32),
-    playerMenuListingColumn1,
-    sg.Text("-undefined-", key="playerPingPlateN", font='Any 12', text_color="green")
-]
-
-
-
 playerListingFrame = sg.Frame(
     title="Players in Lobby",
     layout=lobbyPlayersLayout,
@@ -144,6 +130,32 @@ sublayout = [
 ]
 
 layout = [[sg.Frame(title="Simple Lobby Viewer", layout=sublayout, expand_x=True, expand_y=True, size=(950, 1000))]]
+
+
+def create_player_tile(player: TF2Player) -> sg.Frame:
+
+    # TODO: Work on this
+    player_tile_text_plate = sg.Column([
+        [sg.Text(player.personaname, key=f"playerNamePlate{player.steamID64}", font='Any 14')],
+        [
+            sg.Text(player.game_time, key=f"playerTimePlate{player.steamID64}", font='Any 12'),
+            sg.Text(player.ping, key=f"playerPingPlate{player.steamID64}", font='Any 12')
+        ]
+    ])
+
+
+    sg.Combo(readonly=True, key=f"playerAssociationCombo{player.steamID64}", font="Any 14")
+
+    # TODO: call async image download if player.pfp_cached == False, leave image as default TF2 logo and set cached to
+    #       true. When player updates occur, we will check for if the cached image exists locally on the drive yet,
+    #       and update the image source then.
+    player_tile_plate = [
+        sg.Image(
+            source=str(Path("../../../data/images/tf2.png")), subsample=32, key=f"playerIconPlate{player.steamID64}"
+        ),
+        player_tile_text_plate,
+        sg.Text("-undefined-", key="playerPingPlateN", font='Any 12', text_color="green")
+    ]
 
 
 def update_player_details(window: sg.Window, team: Literal[1, 2], player: TF2Player) -> None:

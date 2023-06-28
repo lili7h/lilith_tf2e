@@ -5,6 +5,7 @@ from src.modules.rc.rcon_client import RCONListener, RCONHelper
 from src.modules.listener.path_listener import Watchdog
 from src.modules.listener.status import TF2StatusBlob
 from threading import Thread, Lock
+from abc import ABC, abstractmethod
 
 import copy
 import os
@@ -12,6 +13,82 @@ import re
 import time
 import loguru
 import schedule
+
+
+class PlayerAssociation(ABC):
+    label: str = None
+    color: str = None  # american spelling to make linters happy >:3
+
+    def __init__(self, label: str, color: str) -> None:
+        self.label = label
+        self.color = color
+
+    @abstractmethod
+    def related_message(self) -> str:
+        pass
+
+
+class Friend(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Friend", color="green")
+
+    def related_message(self) -> str:
+        return "is a good friend :)"
+
+
+class Trusted(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Trusted", color="cyan")
+
+    def related_message(self) -> str:
+        return "is trusted"
+
+
+class Neutral(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Neutral", color="gray")
+
+    def related_message(self) -> str:
+        return "is unknown/unlabelled"
+
+
+class Suspicious(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Suspicious", color="yellow")
+
+    def related_message(self) -> str:
+        return "is marked as suspicious"
+
+
+class Cheater(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Cheater", color="red")
+
+    def related_message(self) -> str:
+        return "is a confirmed cheater"
+
+
+class Bot(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Bot", color="orange")
+
+    def related_message(self) -> str:
+        return "is a bot"
+
+
+class Phobic(PlayerAssociation):
+
+    def __init__(self) -> None:
+        super().__init__(label="Phobic", color="brown")
+
+    def related_message(self) -> str:
+        return "is LGBTQ-Phobic"
 
 
 class TF2Player:
