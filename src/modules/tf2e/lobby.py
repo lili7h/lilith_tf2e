@@ -94,6 +94,52 @@ class Phobic(PlayerAssociation):
         return "is LGBTQ-Phobic"
 
 
+class DummyTF2Player:
+    possible_associations: list[PlayerAssociation] = [
+        Cheater(),
+        Suspicious(),
+        Bot(),
+        Phobic(),
+        Neutral(),
+        Trusted(),
+        Friend()
+    ]
+
+    steam: Steam = None
+    steamID: str = "None"
+    steamID3: str = "None"
+    steamID64: str = "None"
+    communityvisibilitystate: int = 0  # Example:3
+    profilestate: int = 0  # Example: 1,
+    personaname: str = "None"  # Example: "The12thChairman",
+    profileurl: str = "None"  # Example: "https://steamcommunity.com/id/the12thchairman/",
+    avatar: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6.jpg",
+    avatarmedium: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6_medium.jpg",
+    avatarfull: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6_full.jpg",
+    avatarhash: str = "None"  # Example: "427ef7d5f8ad7b21678f69bc8afc95786cf38fe6",
+    lastlogoff: int = 0  # Example: 1659923870,
+    personastate: int = 0  # Example: 1,
+    primaryclanid: str = "None"  # Example: "103582791429521408",
+    timecreated: int = 0  # Example: 1570311509,
+    personastateflags: int = 0  # Example: 0,
+    loccountrycode: str = "None"  # Example: "US"
+
+    ping: int = 0
+    player_id: str = "None"
+    game_time: int = 0
+    player_state: str = "None"
+    lobby_team: str = "None"  # Example: "TF_GC_TEAM_DEFENDERS"
+    player_type: str = "None"  # Example: "MATCH_PLAYER"
+
+    profile_init: bool = True
+    association: PlayerAssociation = Neutral()
+
+    dummy_id: int = None
+
+    def __init__(self, dummy_id: int):
+        self.dummy_id = dummy_id
+
+
 class TF2Player:
     possible_associations: list[PlayerAssociation] = [
         Cheater(),
@@ -126,13 +172,14 @@ class TF2Player:
 
     ping: int = None
     player_id: str = None
-    game_time: int = None
+    game_time: str = None
     player_state: str = None
     lobby_team: str = None  # Example: "TF_GC_TEAM_DEFENDERS"
     player_type: str = None  # Example: "MATCH_PLAYER"
 
     profile_init: bool = None
     association: PlayerAssociation = None
+    dummy_id: int = 0  # real TF2Player instances will always have a 0 dummy id
 
     def __init__(self, steam_client: Steam, steam_id3: str):
         self.steamID = Converter.to_steamID(steam_id3)
@@ -180,8 +227,8 @@ class TF2Player:
 
 
 class TF2Lobby:
-    lobby_id: str = None         # 'CTFLobbyShared: ID:00022b29776f570e  24 member(s), 0 pending',
-    player_count: int = None     #
+    lobby_id: str = None  # 'CTFLobbyShared: ID:00022b29776f570e  24 member(s), 0 pending',
+    player_count: int = None  #
     pending_players: int = None
     players: list[TF2Player] = None
     exists: bool = None
@@ -323,7 +370,6 @@ class TF2Lobby:
             self.address = (status.status_udp.split(":")[0], int(status.status_udp.split(":")[1]))
             self.server_id = status.status_sid
             self.player_count = status.num_players
-
 
     @classmethod
     def spawn_from_tf_lobby_debug(cls, tf_lobby_debug_str: str, _steam: Steam | None = None) -> Self:
