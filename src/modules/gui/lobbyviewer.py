@@ -67,7 +67,7 @@ def create_detail_data_frame(team: Literal[1, 2]) -> sg.Frame:
     )
 
 def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.Frame:
-    # TODO: Work on this
+    # TODO: Player tiles may have to be changed
     player_tile_text_plate = sg.Column([
         [sg.Text(player.personaname, key=f"playerNamePlate{tile_id}", font='Any 14')],
         [
@@ -155,6 +155,7 @@ def update_player_tile(window: sg.Window, player_id: int, team: Literal[1,2], pl
 
 
 def about_and_status() -> sg.Frame:
+    # TODO: clean up how we generate the about and status frames.
     headerDataColumn = sg.Column([
         [sg.Text("Simple Lobby Viewer v0.1.0a", justification="c", font="Any 20")],
         [sg.Text("Created by Lilith", font="Any 16", text_color="white")],
