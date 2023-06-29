@@ -12,6 +12,10 @@ FLOAT_MAX = struct.unpack('>f', b'\x7f\x7f\xff\xff')
 
 
 class Vector3D:
+    """
+    Dummy vector class that uses np.arrays for the pure fact that np implemented
+    vector arithmetic and operations, which may or may not be useful at any point.
+    """
     def __init__(self, vec: list):
         self.vec = np.array(vec)
 
@@ -23,6 +27,10 @@ _jd = dict[str, Union[int, float, bool, str, Vector3D, bytes]]
 
 
 class Team(Enum):
+    """
+    TF2 actually has 4 distinct teams.
+    We only ever really play as red or blu, so 2 or 3.
+    """
     Unconnected = 0
     Spectator = 1
     Red = 2
@@ -30,6 +38,10 @@ class Team(Enum):
 
 
 class InternalVarMShared:
+    """
+    m_Shared is a struct that is mapped across several classes/structs in the g15 dump, and thus we store them
+    externally to the data classes themselves to allow cross-class referencing
+    """
     m_nPlayerState: int = None
     m_nPlayerCond: int = None
     m_flCloakMeter: float = None
@@ -67,6 +79,9 @@ class InternalVarMShared:
 
 
 class InternalVarMLocal:
+    """
+    m_Local is a shared struct that contains data on the local player and events
+    """
     m_nStepside: int = None
     m_bPrevForceLocalPlayerDraw: bool = None
     m_iHideHUD: int = None
@@ -91,6 +106,12 @@ class InternalVarMLocal:
 
 
 class InternalVarMCollision:
+    """
+    m_Collision is a common struct between multiple classes, and details the relevant components of the collision
+    properties of something. Technically each data class should have its own instance of this, but since we don't
+    actually care about collision properties, we just have every class point at the same one. This can be changed
+    later if necessary.
+    """
     m_vecMinsPreScaled: Vector3D = None
     m_vecMaxsPreScaled: Vector3D = None
     m_vecMaxs: Vector3D = None
@@ -102,16 +123,28 @@ class InternalVarMCollision:
 
 
 class InternalVar:
+    """
+    Data class containing references to shared common structs
+    """
     m_Shared = InternalVarMShared()
     m_Local = InternalVarMLocal()
     m_Collision = InternalVarMCollision()
 
 
 class pl:
+    """
+    this is a bit of a stub, but the way it appears in the dump output, `pl` is probably a player struct, but may or may
+    not be an artifact of porting from half life 1, and thus has mostly irrelevant data in it that doesn't pertain to
+    multiplayer. Either that or they don't like revealing the data in here...
+    """
     deadflag: bool = None
 
 
 class IntVarLocalPlayer:
+    """
+    Local player data, most useful thing in here is probably `m_iTeamNum`, but this is duplicated across other
+    data classes anyway. Notably, the current ammo in mag value of _every player in the server_ is recorded in here.
+    """
     m_Shared = InternalVar.m_Shared
     m_Local = InternalVar.m_Local
     m_nSequence: int = None
@@ -188,6 +221,11 @@ class IntVarLocalPlayer:
 
 
 class IntVarLocalTeam:
+    """
+    Contains the name of the team the local player is on. Annoyingly this is presented as either the `m_szTeamnameBlue`
+    field or the `m_szTeamnameRed` field existing (i.e. not None), perhaps artifacts of having multiple team colors
+    planned? either way, it just makes checking the team name slightly more annoying.
+    """
     m_szTeamnameBlue: None = None
     m_szTeamnameRed: None = None
     m_iScore: int = None
@@ -228,6 +266,20 @@ class IntVarLocalTeam:
 
 
 class IntVarPlayerResource:
+    """
+    A big compendium of resources related to _all_ players in the server. This includes:
+    - the nick names (i.e. 'personaname') of every player in the server
+    - the ping of every player in the server
+    - the score of every player in the server
+    - the number of deaths of every player in the server
+    - the connected status of every player in the server
+    - the team number of every player in the server
+    - the alive flag of every player in the server
+    - the SteamID3 of every player in the server
+    - the in game ID of every player in the server
+    - the current health value of every player on your team
+    - the 'validity' of every player slot (probably determines what the scoreboard shows)
+    """
     m_szName: list[str] = None
     m_iPing: list[int] = None
     m_iScore: list[int] = None
@@ -285,6 +337,10 @@ class IntVarPlayerResource:
 
 
 class IntVarLocalPlayerWeapon:
+    """
+    Who knows if much of this is useful? It contains local data on the local players crit seed and such, which may
+    prove useful to some.
+    """
     m_flLastCritCheckTime: float = None
     m_flReloadPriorNextFire: float = None
     m_flLastFireTime: float = None
@@ -364,7 +420,12 @@ class IntVarLocalPlayerWeapon:
 
 
 class G15Stream:
-
+    """
+    A useful metaclass that turns the list of strings generated from splitting the output of `g15_dumpplayer` on
+    newlines into a generator with specifiable start and end sections. This allows us to use the section delimiters
+    embedded within the command output such as "(localplayerweapon)" as flags to segment the data stream into iterable
+    chunks all within the one variable.
+    """
     def __init__(self, stream: list[str], start: str, until: str) -> None:
         self.stream = stream
         self.start = start
@@ -389,6 +450,12 @@ class G15Stream:
 
 
 class G15DumpPlayer:
+    """
+    A data class that parses the output of the `g15_dumpplayer` command into the 4 relevant data classes.
+
+    The G15 data is extracted via RCON de-fragged packets, and fed in here. The constructor performs the
+    simple iterative data parsing to apply the values to the data classes.
+    """
     _LocalPlayer: IntVarLocalPlayer = None
     _LocalTeam: IntVarLocalTeam = None
     _PlayerResource: IntVarPlayerResource = None
@@ -406,8 +473,8 @@ class G15DumpPlayer:
         """
         This is incredibly gross as a function
 
-        Its got a lot of repeated code that could be (and probably will be later)
-        abstracted into sub functions. But it works and its quick.
+        It's got a lot of repeated code that could be (and probably will be later)
+        abstracted into sub functions. But it works and it's quick.
 
         Parse the output of `g15_dumpplayer` into data classes.
         :param command_stream: the stream of str of the command
@@ -419,6 +486,10 @@ class G15DumpPlayer:
         _start = datetime.now()
 
         _g15_dumpplayer_stream = command_stream.split("\n")
+
+        # TODO: A heavy refactor is in order to abstract out reused code into private internal (i.e. "_"-prefixed)
+        #       functions. A lot of this code is duplicated,the only differences being under what object attributes
+        #       get set to, and the start and end flags of the generators.
 
         # (localplayer) data
         for i in G15Stream(_g15_dumpplayer_stream, self.localplayer, self.localteam):
@@ -635,6 +706,14 @@ class G15DumpPlayer:
 
 
 def do_g15(rcon_conf: tuple[str, int, str]) -> G15DumpPlayer:
+    """
+    Given the rcon configuration params, invoke a custom FragClient instance to invoke the 'g15_dumpplayer' command
+    and sequentially read and concatenate the response (fragmented) packets. Then this response is passed to
+    G15DumpPlayer and a parsed G15DumpPlayer instance is returned.
+
+    :param rcon_conf: a tuple containing the: rcon_ip, rcon_port, rcon_password
+    :return: The constructed G15DumpPlayer instance.
+    """
     with FragClient(rcon_conf[0], rcon_conf[1], passwd=rcon_conf[2]) as h:
         resp = h.frag_run("g15_dumpplayer")
     _inst = G15DumpPlayer(resp)
