@@ -66,47 +66,63 @@ def create_detail_data_frame(team: Literal[1, 2]) -> sg.Frame:
         expand_x=True, expand_y=True,
     )
 
+
 def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.Frame:
     # TODO: Player tiles may have to be changed
     player_tile_text_plate = sg.Column([
-        [sg.Text(player.personaname, key=f"playerNamePlate{tile_id}", font='Any 14')],
+        [sg.Text(player.personaname, key=f"playerNamePlate{tile_id}", font='Any 14', expand_x=True)],
         [
-            sg.Text(player.game_time, key=f"playerTimePlate{tile_id}", font='Any 12'),
-            sg.Text(player.ping, key=f"playerPingPlate{tile_id", font='Any 12')
+            sg.Text(player.game_time, key=f"playerTimePlate{tile_id}", font='Any 12', expand_x=True),
+            sg.Text(player.ping, key=f"playerPingPlate{tile_id}", font='Any 12', expand_x=True)
         ]
-    ])
+    ], expand_x=True)
 
     # TODO: call async image download if player.pfp_cached == False, leave image as default TF2 logo and set cached to
     #       true. When player updates occur, we will check for if the cached image exists locally on the drive yet,
     #       and update the image source then.
+
     player_tile_plate = [
         [
-            sg.Image(
-                source=str(Path("../../../data/images/tf2.png")), subsample=32, key=f"playerIconPlate{tile_id}"
+            sg.pin(
+                elem=sg.Image(
+                    source=str(Path("../../../data/images/tf2.png")), subsample=32, key=f"playerIconPlate{tile_id}"
+                ),
+                shrink=False
             ),
             player_tile_text_plate,
-            sg.Combo(
-                readonly=True, key=f"playerAssociationCombo{tile_id}", font="Any 14",
-                values=TF2Player.possible_associations, default_value=player.association, enable_events=True
-            )
+            sg.pin(
+                elem=sg.Combo(
+                    readonly=True, key=f"playerAssociationCombo{tile_id}", font="Any 10",
+                    values=TF2Player.possible_associations, default_value=player.association, enable_events=True,
+                    expand_x=False
+                ),
+                shrink=False
+            ),
+            sg.Checkbox(enable_events=True, key=f"playerCheckbox{tile_id}", text="")
         ]
     ]
 
     _frame = sg.Frame(layout=player_tile_plate, title=f"{player.loccountrycode}", key=f"playerTileFrame{tile_id}",
-                      title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief=sg.RELIEF_RIDGE)
+                      title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief=sg.RELIEF_RIDGE, expand_x=True,
+                      element_justification='right', size=(400, 90), visible=True)
 
     return _frame
+
 
 def create_player_tiles(team: Literal[1, 2]) -> sg.Column:
     _team_frames = []
     for i in range(16):
-        _dummy = DummyTF2Player(team*100 + i)
-        _frame = create_player_tile(team*100 + i, _dummy)
-        _frame.update(visible=False)
+        _dummy = DummyTF2Player(team * 100 + i)
+        _frame = create_player_tile(team * 100 + i, _dummy)
         _team_frames.append(_frame)
-    return sg.Column(layout=[
-        _team_frames
-    ], key=f"playerTilesColumn{team}")
+    return sg.Column(
+        layout=[[x] for x in _team_frames],
+        key=f"playerTilesColumn{team}",
+        scrollable=True,
+        expand_y=True,
+        expand_x=True,
+        vertical_scroll_only=True,
+    )
 
 
 def spawn_player_tiles() -> tuple[sg.Column, sg.Column]:
@@ -119,37 +135,76 @@ def player_listing_frame() -> sg.Frame:
         title="Players in Lobby",
         layout=[[_t1_players, _t2_players]],
         expand_x=True, expand_y=True,
-        size=(800, 800),
-        key="playerListingFrame"
+        size=(900, 400),
+        key="playerListingFrame",
+
     )
 
 
 def spawn_player_detail_frames() -> tuple[sg.Frame, sg.Frame]:
     return create_detail_data_frame(1), create_detail_data_frame(2)
 
+
 def player_detail_frame() -> sg.Frame:
     _t1_detail_data, _t2_detail_data = spawn_player_detail_frames()
     return sg.Frame(
         title="Advanced Details",
         layout=[[_t1_detail_data, _t2_detail_data]],
-        expand_x=True, expand_y=True,
-        size=(800, 400),
+        expand_x=True,
+        size=(900, 250),
         key="playerDetailsFrame"
     )
 
-def update_player_tile(window: sg.Window, player_id: int, team: Literal[1,2], player: TF2Player) -> None:
-    _tid = team*100 + player_id
+
+def unselect_all_other_checkboxes(window: sg.Window, team: Literal[1, 2] | int, keep: str) -> None:
+    for i in range(16):
+        _tid = team * 100 + i
+        _key = f"playerCheckbox{_tid}"
+        if _key == keep:
+            continue
+        _checkbox: sg.Checkbox = window[_key]
+        _checkbox.update(value=False)
+
+
+def hide_all_player_tiles(window: sg.Window) -> None:
+    for i in range(16):
+        for team in range(1, 3):
+            _tid = team * 100 + i
+            _name: sg.Text = window[f"playerNamePlate{_tid}"]
+            _time: sg.Text = window[f"playerTimePlate{_tid}"]
+            _ping: sg.Text = window[f"playerPingPlate{_tid}"]
+            _icon: sg.Image = window[f"playerIconPlate{_tid}"]
+            _combo: sg.Combo = window[f"playerAssociationCombo{_tid}"]
+            _cb: sg.Checkbox = window[f"playerCheckbox{_tid}"]
+
+            _name.update(value="")
+            _time.update(value="")
+            _ping.update(value="")
+            _icon.update(visible=False)
+            # TODO: update icon somehow
+            _combo.update(visible=False)
+            _cb.update(visible=False, value=False)
+
+            # window[f"playerTileFrame{_tid}"].update(visible=True)
+
+
+
+def update_player_tile(window: sg.Window, player_id: int, team: Literal[1, 2], player: TF2Player) -> None:
+    _tid = team * 100 + player_id
     _name: sg.Text = window[f"playerNamePlate{_tid}"]
     _time: sg.Text = window[f"playerTimePlate{_tid}"]
     _ping: sg.Text = window[f"playerPingPlate{_tid}"]
     _icon: sg.Image = window[f"playerIconPlate{_tid}"]
     _combo: sg.Combo = window[f"playerAssociationCombo{_tid}"]
+    _cb: sg.Checkbox = window[f"playerCheckbox{_tid}"]
 
-    _name.update(value=player.personaname)
-    _time.update(value=player.game_time)
-    _ping.update(value=f"{player.ping}ms")
+    _name.update(value=player.personaname, visible=True, text_color=player.association.color)
+    _time.update(value=player.game_time, visible=True)
+    _ping.update(value=f"{player.ping}ms", visible=True)
+    _icon.update(visible=True)
     # TODO: update icon somehow
-    _combo.update(value=player.association)
+    _combo.update(value=player.association, visible=True)
+    _cb.update(visible=True, value=False)
 
     window[f"playerTileFrame{_tid}"].update(visible=True)
 
@@ -157,7 +212,7 @@ def update_player_tile(window: sg.Window, player_id: int, team: Literal[1,2], pl
 def about_and_status() -> sg.Frame:
     # TODO: clean up how we generate the about and status frames.
     headerDataColumn = sg.Column([
-        [sg.Text("Simple Lobby Viewer v0.1.0a", justification="c", font="Any 20")],
+        [sg.Text("Simple Lobby Viewer v0.2.1a", justification="wddc", font="Any 20")],
         [sg.Text("Created by Lilith", font="Any 16", text_color="white")],
         [sg.Text("(C) 2023, MIT License", font="Any 10", text_color="white")],
     ])
@@ -183,8 +238,10 @@ def about_and_status() -> sg.Frame:
     return sg.Frame(
         title="",
         layout=[[headerFrame, statusFrame]],
-        key="headerFrame"
+        key="headerFrame",
+        size=(900, 150)
     )
+
 
 def build() -> sg.Column:
     _app_status: sg.Frame = about_and_status()
@@ -200,8 +257,6 @@ def build() -> sg.Column:
         key="mainDisplay"
     )
     return main_display
-
-
 
 
 playerFrameColumnLayoutLabels1 = [
@@ -331,7 +386,7 @@ sublayout = [
 layout = [[sg.Frame(title="Simple Lobby Viewer", layout=sublayout, expand_x=True, expand_y=True, size=(950, 1000))]]
 
 
-def update_player_details(window: sg.Window, team: Literal[1, 2], player: TF2Player) -> None:
+def update_player_details(window: sg.Window, team: Literal[1, 2] | int, player: TF2Player) -> None:
     _ident = f"Team{team}Player"
     try:
         _pl_tc = datetime.fromtimestamp(player.timecreated)
@@ -437,12 +492,67 @@ def main2(loader: TF2eLoader, globby: lobby.LobbyWatching):
     sg.theme("DarkPurple1")
     _main_disp = build()
     _window = sg.Window("SimpleLobbyViewer v0.2.0a", layout=[[_main_disp]], resizable=True)
-    _last_update: datetime = datetime.now()
+    _last_update: datetime = globby.lobby.last_update
+    player_map: dict[str, TF2Player] = {}
     # TODO: implement live loop, including player tile updates.
     # TODO: implement player icon caching using the icon hash as an efficiency measure
     # TODO: clean up how we dummy define the player frames.
+    while True:
+        event, values = _window.read(timeout=5)
+        if event == sg.WIN_CLOSED:
+            break
+        if str(event).startswith("playerCheckbox"):
+            print(event)
+            try:
+                _team = 1 if str(event).startswith("playerCheckbox1") else 2
+                _tid = str(event).strip().replace("playerCheckbox", "")
+                unselect_all_other_checkboxes(_window, _team, event)
+                _pl = player_map[_tid]
+                update_player_details(_window, team=_team, player=_pl)
+            except KeyError:
+                pass  # this will occur if the user checks a "None" box
 
+        _tf2_status: sg.Text = _window["tf2statuselem"]
+        _tf2_pid: sg.Text = _window["tf2pidkey"]
+        _steam_status: sg.Text = _window["steamstatuskey"]
 
+        if is_hl2_running:
+            _tf2_status.update(value="TF2 is running!", text_color="green")
+        else:
+            _tf2_status.update(value="TF2 is closed :(", text_color="red")
+
+        _tf2_pid.update(value=str(get_hl2_pid()))
+
+        if loader.steam_client is not None:
+            _steam_status.update(value="online!", text_color="green")
+        else:
+            _steam_status.update(value="offline :(", text_color="red")
+
+        if globby.lobby.last_update != _last_update:
+            # print("updating...")
+            player_map = {}
+            hide_all_player_tiles(_window)
+            team1idx = 0
+            team2idx = 0
+            for _pl in globby.lobby.players:
+                if _pl.lobby_team == "TF_GC_TEAM_DEFENDERS":
+                    update_player_tile(_window, team2idx, 2, _pl)
+                    player_map[str(200 + team2idx)] = _pl
+                    team2idx += 1
+
+                elif _pl.lobby_team == "TF_GC_TEAM_INVADERS":
+                    update_player_tile(_window, team1idx, 1, _pl)
+                    player_map[str(100 + team2idx)] = _pl
+                    team1idx += 1
+
+            _last_update: datetime = globby.lobby.last_update
+
+            _window.refresh()
+
+    # End program
+    loader.log_listener.end()
+    globby.kill_watcher()
+    _window.close()
 
 
 if __name__ == "__main__":

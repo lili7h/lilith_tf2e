@@ -1,6 +1,8 @@
+import datetime
+
 from steam import Steam
 from steamid_converter import Converter
-from typing import Self, Any
+from typing import Self, Any, Literal
 from src.modules.rc.rcon_client import RCONListener, RCONHelper
 from src.modules.listener.path_listener import Watchdog
 from src.modules.listener.status import TF2StatusBlob
@@ -240,6 +242,9 @@ class TF2Lobby:
     steam_: Steam = None
     listener: Watchdog = None
 
+    last_update: datetime.datetime = None
+    last_update_type: Literal["status", "tf_lobby_debug"] = None
+
     def __init__(self, players: list[TF2Player], lobby_data: str) -> None:
 
         self.lobby_lock = Lock()
@@ -251,6 +256,7 @@ class TF2Lobby:
         self.map = "Unknown"
         self.server_id = "Unknown"
         self.address = ("Unknown", 0)
+        self.last_update = datetime.datetime.now()
 
     def set_iclients(self, rcon_client, steam_client) -> None:
         self.rcon = rcon_client
@@ -328,6 +334,7 @@ class TF2Lobby:
         if changes_made:
             loguru.logger.info(f"Updated lobby with new data.")
 
+        self.last_update = datetime.datetime.now()
         return changes_made
 
     def update_from_status(self):
@@ -371,6 +378,16 @@ class TF2Lobby:
             self.server_id = status.status_sid
             self.player_count = status.num_players
 
+        self.last_update = datetime.datetime.now()
+
+    def alternate_updates(self) -> None:
+        if self.last_update_type is None or self.last_update_type == "status":
+            self.last_update_type = "tf_lobby_debug"
+            self.update()
+        else:
+            self.last_update_type = "status"
+            self.update_from_status()
+
     @classmethod
     def spawn_from_tf_lobby_debug(cls, tf_lobby_debug_str: str, _steam: Steam | None = None) -> Self:
         if tf_lobby_debug_str.strip() == "Failed to find lobby shared object":
@@ -400,7 +417,7 @@ class LobbyWatching:
         self.steam = steam_iclient
         self.lobby = TF2Lobby.spawn_from_tf_lobby_debug(RCONHelper.get_lobby_data(self.rcon))
         self.lobby.set_iclients(self.rcon, self.steam)
-        self.schedule_job = schedule.every(8).seconds.do(job_func=self.lobby.update_from_status)
+        self.schedule_job = schedule.every(7).seconds.do(job_func=self.lobby.alternate_updates)
         self._run_scheduler = True
         self.schedule_proc = Thread(
             target=self._manage_scheduler,

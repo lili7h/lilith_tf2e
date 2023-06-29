@@ -1,5 +1,7 @@
 from rcon.source import Client
 from src.modules.rc.proc_reporter import is_hl2_running
+from src.modules.rc.FragClient import FragClient
+
 
 import loguru
 
@@ -32,6 +34,7 @@ class RCONListener:
         try:
             with Client(self.rcon_ip, self.rcon_port, passwd=self.rcon_pword) as h:
                 _response = h.run(command, *args)
+
         except ConnectionRefusedError:
             loguru.logger.error(f"Unable to connect to the remote console - have you run `net_start` in TF2?")
             return ""  # loguru errors will interrupt control flow (raise an exception), this is unreachable.

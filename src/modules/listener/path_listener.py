@@ -21,6 +21,7 @@ from typing import Callable
 # from src.modules.tf2e.lobby import TF2Lobby, TF2Player
 from src.modules.listener.status import TF2StatusBlob
 from src.modules.rc.rcon_client import RCONListener
+from src.modules.rc.FragClient import FragClient
 from abc import ABC, abstractmethod
 from enum import Enum
 
@@ -241,21 +242,19 @@ def main():
     _path = Path("D:\\Steam\\steamapps\\common\\Team Fortress 2\\tf\\console.log")
     _watcher = Watchdog(path=_path)
     _watcher.begin()
-    _rcon_handle = RCONListener(pword="lilith_is_hot")
-    _rcon_handle.spawn_client()
+    # _rcon_handle = RCONListener(pword="lilith_is_hot")
+    # _rcon_handle.spawn_client()
     # _watcher.get_update()
-    _rcon_handle.run("status")
-    _status = _watcher.invoke_status()
-
-    for player_match in _status.players:
-        _groups = player_match.groups()
-        print("Player:", _groups[2][1:len(_groups[2])-1], _groups[5])
-
-    print("Num players:", _status.num_players)
-    print("Map:", _status.status_map)
-    print("Server:", _status.status_udp)
-
-    print(_status.excess_junk)
+    # _resp = _rcon_handle.run("g15_dumpplayer")
+    # _rcon_handle.
+    # print("RESPONSE: ")
+    # print(_resp)
+    rcon_ip = "127.0.0.1"
+    rcon_port = 27015
+    rcon_pword = "lilith_is_hot"
+    with FragClient(rcon_ip, rcon_port, passwd=rcon_pword) as h:
+        resp = h.frag_run("g15_dumpplayer")
+        print(resp)
 
 
 if __name__ == "__main__":
