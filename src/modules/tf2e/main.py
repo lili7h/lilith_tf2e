@@ -5,13 +5,14 @@ import time
 import src.modules.rc.rcon_client as rcc
 import src.modules.listener.path_listener as l2  # l2 is the legacy name for this listener class
 import src.modules.helpers.conf as conf
+import src.modules.caching.avatar_cache as avcache
+import src.modules.tf2e.lobby as lobby
 
 # PyPl/Pip/Poetry/System packages
 from dotenv import load_dotenv
 from pathlib import Path
 from steam import Steam
 
-from src.modules import tf2e as lobby
 import loguru
 import os
 
@@ -20,6 +21,7 @@ class TF2eLoader:
     rcon_client: rcc.RCONListener = None
     log_listener: l2.Watchdog = None
     steam_client: Steam = None
+    av_cache: avcache = None
 
     def __init__(self, data_path: Path):
         envs_loaded: bool = load_dotenv(dotenv_path=data_path.joinpath(".env"))
@@ -66,6 +68,10 @@ class TF2eLoader:
         loguru.logger.info(f"Initialising Steam API client (must have valid steam api key in .env!)...")
         self.steam_client = Steam(key=os.environ["STEAM_WEB_API_KEY"])
         loguru.logger.success(f"Steam API client initialised...")
+
+        loguru.logger.info(f"Initialising the avatar cache DB...")
+        self.av_cache = avcache.AvCache(data_path)
+        loguru.logger.success(f"avatar cache DB client initialised...")
 
 
 def main():

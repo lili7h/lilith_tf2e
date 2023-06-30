@@ -1,0 +1,1 @@
+G15_LOBBY_VIEWER_VER_STR: str = "v0.4.0a"

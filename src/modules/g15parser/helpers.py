@@ -1,4 +1,5 @@
 from src.modules.g15parser.consumer import G15DumpPlayer, Team
+from loguru import logger
 
 
 class PlayerDump:
@@ -86,7 +87,8 @@ def get_player_idx(dump: G15DumpPlayer, sid3: str = None, name: str = None, ig_i
     """
     if sid3 is not None:
         for idx, _pl_id in enumerate(dump.get_local_player_resource_data().m_iAccountID):
-            if _pl_id == sid3:
+            _built_sid3 = get_id3_from_iAccountID(_pl_id)
+            if _built_sid3 == sid3:
                 return idx
 
     if name is not None:
@@ -129,4 +131,24 @@ def get_player_stats_from_idx(dump: G15DumpPlayer, player_idx: int) -> PlayerDum
 
     _pl.set_connected(_pr.m_bConnected[player_idx])
     _pl.set_ig_id(_pr.m_iUserID[player_idx])
+    return _pl
+
+
+def get_player_stats_from_identifier(
+        dump: G15DumpPlayer, sid3: str = None, name: str = None, ig_id: int = None
+) -> PlayerDump:
+    """
+    Helper function to combine `get_player_idx` with `get_player_stats_from_idx`, provided an identifying trait,
+    get a PlayerDump object in return.
+
+    :param dump: the G15DumpPlayer object returned from parsing the `g15_dumpplayer` command output
+    :param sid3: optional - the SteamID3 of the player you want the idx of
+    :param name: optional - the 'personaname' or nickname of the player you want the idx of
+    :param ig_id: optional - the in-game id (the first column in the output of `status`) you want the idx of.
+    :return: PlayerDump instance containing all relevant data on this player.
+    """
+    _idx = get_player_idx(dump, sid3, name, ig_id)
+    if _idx == -1:
+        raise ValueError(f"No player idx was found with the provided identifier: {sid3}/{name}/{ig_id}")
+    _pl = get_player_stats_from_idx(dump, _idx)
     return _pl

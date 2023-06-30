@@ -3,6 +3,9 @@ from enum import Enum
 from datetime import datetime
 from typing import Union, Literal
 from pathlib import Path
+
+import loguru
+
 from src.modules.rc.FragClient import FragClient
 import numpy as np
 import struct
@@ -533,6 +536,10 @@ class G15DumpPlayer:
         self._LocalPlayerWeapon = IntVarLocalPlayerWeapon()
         _start = datetime.now()
 
+        if not command_stream.split():
+            loguru.logger.warning(f"Not in lobby, not parsing G15.")
+            return
+
         _g15_dumpplayer_stream = command_stream.split("\n")
 
         # TODO: Attempt to refactor the 4 distinct for loops into one to reduce code duplication
@@ -550,7 +557,7 @@ class G15DumpPlayer:
             sub_target = getattr(self._LocalPlayer, varName.split(".")[0]) if "." in varName else None
             self._set_attribute(self._LocalPlayer, sub_target, varName, parsed_val)
 
-        print(f"Stored {len(self._LocalPlayer.__dict__.keys())} values in {self._LocalPlayer.__class__.__name__}")
+        # print(f"Stored {len(self._LocalPlayer.__dict__.keys())} values in {self._LocalPlayer.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.localteam, self.playerresource):
             values = i.split()
@@ -564,7 +571,7 @@ class G15DumpPlayer:
             sub_target = getattr(self._LocalTeam, varName.split(".")[0]) if "." in varName else None
             self._set_attribute(self._LocalTeam, sub_target, varName, parsed_val)
 
-        print(f"Stored {len(self._LocalTeam.__dict__.keys())} values in {self._LocalTeam.__class__.__name__}")
+        # print(f"Stored {len(self._LocalTeam.__dict__.keys())} values in {self._LocalTeam.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.playerresource, self.localplayerweapon):
             values = i.split()
@@ -578,7 +585,7 @@ class G15DumpPlayer:
             sub_target = getattr(self._PlayerResource, varName.split(".")[0]) if "." in varName else None
             self._set_attribute(self._PlayerResource, sub_target, varName, parsed_val)
 
-        print(f"Stored {len(self._PlayerResource.__dict__.keys())} values in {self._PlayerResource.__class__.__name__}")
+        # print(f"Stored {len(self._PlayerResource.__dict__.keys())} values in {self._PlayerResource.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.localplayerweapon, self.end):
             values = i.split()
@@ -592,7 +599,7 @@ class G15DumpPlayer:
             sub_target = getattr(self._LocalPlayerWeapon, varName.split(".")[0]) if "." in varName else None
             self._set_attribute(self._LocalPlayerWeapon, sub_target, varName, parsed_val)
 
-        print(f"Stored {len(self._LocalPlayerWeapon.__dict__.keys())} values in {self._LocalPlayerWeapon.__class__.__name__}")
+        # print(f"Stored {len(self._LocalPlayerWeapon.__dict__.keys())} values in {self._LocalPlayerWeapon.__class__.__name__}")
 
     def get_local_player_data(self) -> IntVarLocalPlayer:
         return self._LocalPlayer

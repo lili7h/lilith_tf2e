@@ -104,7 +104,7 @@ def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.F
 
     _frame = sg.Frame(layout=player_tile_plate, title=f"{player.loccountrycode}", key=f"playerTileFrame{tile_id}",
                       title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief=sg.RELIEF_RIDGE, expand_x=True,
-                      element_justification='right', size=(400, 90), visible=True)
+                      element_justification='right', size=(400, 90), visible=False)
 
     return _frame
 
@@ -185,8 +185,7 @@ def hide_all_player_tiles(window: sg.Window) -> None:
             _combo.update(visible=False)
             _cb.update(visible=False, value=False)
 
-            # window[f"playerTileFrame{_tid}"].update(visible=True)
-
+            window[f"playerTileFrame{_tid}"].update(visible=False)
 
 
 def update_player_tile(window: sg.Window, player_id: int, team: Literal[1, 2], player: TF2Player) -> None:
@@ -546,6 +545,11 @@ def main2(loader: TF2eLoader, globby: lobby.LobbyWatching):
                     team1idx += 1
 
             _last_update: datetime = globby.lobby.last_update
+
+            _t1_listing_frame: sg.Column = _window['playerTilesColumn1']
+            _t2_listing_frame: sg.Column = _window['playerTilesColumn2']
+            _t1_listing_frame.contents_changed()
+            _t2_listing_frame.contents_changed()
 
             _window.refresh()
 

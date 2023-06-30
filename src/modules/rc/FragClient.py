@@ -1,3 +1,4 @@
+import loguru
 from rcon.source import Client
 from socket import SOCK_STREAM
 from rcon.exceptions import SessionTimeout, WrongPassword
@@ -35,14 +36,18 @@ class FragClient(Client, socket_type=SOCK_STREAM):
         self.send(_dummy_pack)
         _total_packet: Packet | None = None
         while True:
-            _pack = self.read()
+            try:
+                _pack = self.read()
+            except ValueError:
+                loguru.logger.warning(f"Read invalid packet from server...")
+                continue
             if _pack.type == Type.SERVERDATA_RESPONSE_VALUE:
                 if _pack.id == _dummy_pack.id or _pack.payload == b'\x00\x00\x00\x01\x00\x00\x00\x00':
                     break
                 else:
                     if _total_packet is None:
                         _total_packet = _pack
-                    else:
+                    elif _pack.id == packet.id:
                         _total_packet += _pack
 
         return _total_packet
@@ -55,7 +60,7 @@ class FragClient(Client, socket_type=SOCK_STREAM):
         if response.id != request.id:
             raise SessionTimeout()
 
-        return response.payload.decode(encoding)
+        return response.payload.decode(encoding, errors='ignore')
 
 
 def make_command_frag() -> Packet:

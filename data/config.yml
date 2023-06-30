@@ -1,4 +1,4 @@
 tf2:
-  dir: "path/to/tf2"
+  dir: "D:\\Steam\\steamapps\\common\\Team Fortress 2"
   rcon:
     password: "lilith_is_hot"

@@ -149,7 +149,7 @@ class Watchdog:
             if _initial_data is None:
                 time.sleep(0.05)
                 _time = datetime.datetime.now() - _time_started
-                if _time.seconds > 5:
+                if _time.seconds > 2:
                     return None
 
             if not _data_lines and _initial_data is not None:

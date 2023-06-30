@@ -9,3 +9,6 @@ watchdog~=3.0.0
 python-steam-api~=1.0.8
 steamid-converter~=1.0.1
 steam~=1.4.4
+requests~=2.31.0
+Pillow~=9.5.0
+numpy~=1.25.0

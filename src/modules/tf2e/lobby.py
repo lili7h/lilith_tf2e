@@ -2,10 +2,15 @@ import datetime
 
 from steam import Steam
 from steamid_converter import Converter
-from typing import Self, Any, Literal
+from typing import Self, Any, Literal, Callable
 from src.modules.rc.rcon_client import RCONListener, RCONHelper
+from src.modules.caching.avatar_cache import AvCache
+from src.modules.rc.FragClient import FragClient
+from src.modules.g15parser.consumer import do_g15, G15DumpPlayer, Team
+from src.modules.g15parser.helpers import get_player_stats_from_identifier, get_id3_from_iAccountID, PlayerDump
 from src.modules.listener.path_listener import Watchdog
 from src.modules.listener.status import TF2StatusBlob
+from pathlib import Path
 from threading import Thread, Lock
 from abc import ABC, abstractmethod
 
@@ -179,6 +184,13 @@ class TF2Player:
     lobby_team: str = None  # Example: "TF_GC_TEAM_DEFENDERS"
     player_type: str = None  # Example: "MATCH_PLAYER"
 
+    game_team: Team = None
+    pl_health: int = None
+    pl_ammo: int = None
+    ig_id: int = None
+    pl_score: int = None
+    pl_deaths: int = None
+
     profile_init: bool = None
     association: PlayerAssociation = None
     dummy_id: int = 0  # real TF2Player instances will always have a 0 dummy id
@@ -195,11 +207,18 @@ class TF2Player:
         self.association = Neutral()
 
     def _lookup_profile(self):
-        _response = self.steam.users.get_user_details(self.steamID64)['player']
-        for class_field in _response.keys():
-            if class_field == "steamid":
-                continue
-            setattr(self, class_field, _response[class_field])
+        try:
+            _response = self.steam.users.get_user_details(self.steamID64)['player']
+            for class_field in _response.keys():
+                if class_field == "steamid":
+                    continue
+                setattr(self, class_field, _response[class_field])
+
+            if self.avatarhash is not None and self.avatarfull is not None:
+                _db = AvCache(Path("NULL"))  # path should be initialised at this point because singleton.
+                _db.cache_avatar(self.avatarhash, self.avatarfull)
+        except IndexError:
+            return
 
     # Example tf_lobby_debug line '  Member[0] [U:1:1067916592]  team = TF_GC_TEAM_DEFENDERS  type = MATCH_PLAYER'
     def set_lobby_status(self, tf_lobby_debug_player_str: str) -> None:
@@ -217,6 +236,21 @@ class TF2Player:
         self.game_time = _groups[4]
         self.ping = _groups[5]
         self.player_state = _groups[6]
+
+        if not self.profile_init:
+            self._lookup_profile()
+
+    def set_from_g15_player_dump(self, player_dump: PlayerDump) -> None:
+        self.ping = player_dump.ping
+        self.steamID3 = player_dump.steamid3
+        self.steamID = Converter.to_steamID(self.steamID3)
+        self.steamID64 = Converter.to_steamID64(self.steamID3)
+        self.pl_score = player_dump.score
+        self.pl_deaths = player_dump.deaths
+        self.pl_ammo = player_dump.ammo
+        self.pl_health = player_dump.health
+        self.ig_id = player_dump.ig_id
+        self.game_team = player_dump.team
 
         if not self.profile_init:
             self._lookup_profile()
@@ -239,11 +273,13 @@ class TF2Lobby:
     address: tuple[str, int] = None
 
     rcon: RCONListener = None
+    rcon_conf: tuple[str, int, str] = None
     steam_: Steam = None
     listener: Watchdog = None
 
     last_update: datetime.datetime = None
-    last_update_type: Literal["status", "tf_lobby_debug"] = None
+    update_order: list[Callable] = None
+    update_location: int = None
 
     def __init__(self, players: list[TF2Player], lobby_data: str) -> None:
 
@@ -258,14 +294,31 @@ class TF2Lobby:
         self.address = ("Unknown", 0)
         self.last_update = datetime.datetime.now()
 
+        self.update_order = [
+            self.update_from_status,
+            self.update_from_g15,
+            self.update_from_g15,
+            self.update_from_g15,
+            self.update_from_g15,
+        ]
+        self.update_location = 0
+
     def set_iclients(self, rcon_client, steam_client) -> None:
         self.rcon = rcon_client
+        self.rcon_conf = (self.rcon.rcon_ip, self.rcon.rcon_port, self.rcon.rcon_pword)
         self.steam_ = steam_client
 
     def connect_listener(self, listener: Watchdog) -> None:
         self.listener = listener
 
     def update(self) -> bool:
+        """
+        Update lobby and player data using output from `tf_lobby_debug`, but this is not optimal as this _only_ works
+        in official match-made servers. This also gives somewhat useful team data, but no relevant in game player data
+        like scores, ping, game time, etc...
+
+        :return: True if any modifications were made
+        """
         data = RCONHelper.get_lobby_data(self.rcon)
         if data.strip() == "Failed to find lobby shared object":
             # Went from existing valid lobby to non-existing invalid lobby
@@ -334,13 +387,45 @@ class TF2Lobby:
         if changes_made:
             loguru.logger.info(f"Updated lobby with new data.")
 
-        self.last_update = datetime.datetime.now()
+        # self.last_update = datetime.datetime.now()
         return changes_made
 
+    def update_from_g15(self):
+        """ Update the player entries from a `g15_dumpplayer` command invocation. """
+        _g15_dump = do_g15(self.rcon_conf)
+        _to_remove = []
+        _found = []
+
+        with self.lobby_lock:
+            for _pl in self.players:
+                try:
+                    _pd = get_player_stats_from_identifier(_g15_dump, sid3=_pl.steamID3)
+                    _pl.set_from_g15_player_dump(_pd)
+                    _found.append(_pl.steamID3)
+                except ValueError:
+                    _to_remove.append(_pl)
+
+        with self.lobby_lock:
+            for aid in _g15_dump.get_local_player_resource_data().m_iAccountID:
+                _id3 = get_id3_from_iAccountID(aid)
+                if _id3 not in _found:
+                    _pl = TF2Player(self.steam_, _id3)
+                    _pl.set_from_g15_player_dump(get_player_stats_from_identifier(_g15_dump, sid3=_id3))
+                    self.players.append(_pl)
+
+        with self.lobby_lock:
+            for _rpl in _to_remove:
+                self.players.remove(_rpl)
+
     def update_from_status(self):
+        """
+        Update player and lobby data from a status command invocation.
+        This is the only way to get the `game_time` values populated per player.
+        """
         self.listener.get_update()
         RCONHelper.invoke_status(self.rcon)
         status: TF2StatusBlob | None = self.listener.invoke_status()
+
         if status is None:
             if self.exists:
                 with self.lobby_lock:
@@ -350,7 +435,7 @@ class TF2Lobby:
                     self.pending_players = 0
                     self.exists = False
                     loguru.logger.info(f"No longer in valid lobby.")
-            loguru.logger.info("No lobby.")
+            loguru.logger.info("No lobby. ")
             return
         self.listener.changes.put("\n".join(status.excess_junk), block=True, timeout=None)
         _existing_sid3 = [(x.steamID3, x) for x in self.players]
@@ -378,15 +463,14 @@ class TF2Lobby:
             self.server_id = status.status_sid
             self.player_count = status.num_players
 
-        self.last_update = datetime.datetime.now()
+        # self.last_update = datetime.datetime.now()
 
-    def alternate_updates(self) -> None:
-        if self.last_update_type is None or self.last_update_type == "status":
-            self.last_update_type = "tf_lobby_debug"
-            self.update()
-        else:
-            self.last_update_type = "status"
-            self.update_from_status()
+    def update_sequenced(self) -> None:
+        _update_method = self.update_order[self.update_location]
+        self.update_location += 1
+        self.update_location %= len(self.update_order)
+        _update_method()
+        self.last_update = datetime.datetime.now()
 
     @classmethod
     def spawn_from_tf_lobby_debug(cls, tf_lobby_debug_str: str, _steam: Steam | None = None) -> Self:
@@ -414,10 +498,11 @@ class LobbyWatching:
 
     def __init__(self, rcon_iclient: RCONListener, steam_iclient: Steam) -> None:
         self.rcon = rcon_iclient
+        self.rcon_conf = (self.rcon.rcon_ip, self.rcon.rcon_port, self.rcon.rcon_pword)
         self.steam = steam_iclient
         self.lobby = TF2Lobby.spawn_from_tf_lobby_debug(RCONHelper.get_lobby_data(self.rcon))
         self.lobby.set_iclients(self.rcon, self.steam)
-        self.schedule_job = schedule.every(7).seconds.do(job_func=self.lobby.alternate_updates)
+        self.schedule_job = schedule.every(7).seconds.do(job_func=self.lobby.update_sequenced)
         self._run_scheduler = True
         self.schedule_proc = Thread(
             target=self._manage_scheduler,
