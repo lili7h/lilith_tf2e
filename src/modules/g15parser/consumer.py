@@ -440,10 +440,12 @@ class G15Stream:
 
     def next(self):
         try:
-            _elem = self.stream[self.idx]
-            if _elem == self.until:
-                raise StopIteration
-            self.idx += 1
+            _elem = ""
+            while not _elem.strip():
+                _elem = self.stream[self.idx]
+                if _elem == self.until:
+                    raise StopIteration
+                self.idx += 1
             return _elem
         except IndexError:
             raise StopIteration
@@ -469,6 +471,52 @@ class G15DumpPlayer:
     def debug_print_localplayer(self) -> None:
         print(self._LocalPlayer.__dict__)
 
+    @staticmethod
+    def _fix_values(values: list[str]) -> None:
+        if len(values) < 3:
+            if ord(values[0][len(values[0]) - 1:]) < 20:
+                values.append("bytes")
+                values.append(values[0][len(values[0]) - 1:])
+            else:
+                values.append("none")
+                values.append("(none)")
+
+    @staticmethod
+    def _parse_value(value_str: str, value_type: str) -> bytes | str | int | float | bool | Vector3D:
+        parsed_val = None
+        if value_type == "vector":
+            parsed_val = Vector3D(value_str[1:len(value_str) - 1].split())
+        elif value_type == "integer" or value_type == "short":
+            parsed_val = int(value_str[1:len(value_str) - 1])
+        elif value_type == "bool":
+            parsed_val = value_str[1:len(value_str) - 1] == "true"
+        elif value_type == "float":
+            parsed_val = float(value_str[1:len(value_str) - 1])
+        elif value_type == "none":
+            parsed_val = None
+        elif value_type == "bytes":
+            parsed_val = bytes(value_str, encoding="utf8")
+        return parsed_val
+
+    @staticmethod
+    def _set_attribute(primary_target, sub_target, var_name, parsed_val) -> None:
+        _array_regex = r"\[(\d+)\]"
+        _match = re.search(_array_regex, var_name)
+        if _match:
+            if sub_target is not None:
+                _idx = int(_match.groups()[0])
+                _target: list = getattr(sub_target, var_name.split(".")[1].split("[")[0])
+                _target[_idx] = parsed_val
+            else:
+                _idx = int(_match.groups()[0])
+                _target: list = getattr(primary_target, var_name.split("[")[0])
+                _target[_idx] = parsed_val
+        else:
+            if sub_target is not None:
+                setattr(sub_target, var_name.split(".")[1], parsed_val)
+            else:
+                setattr(primary_target, var_name, parsed_val)
+
     def __init__(self, command_stream: str) -> None:
         """
         This is incredibly gross as a function
@@ -487,208 +535,62 @@ class G15DumpPlayer:
 
         _g15_dumpplayer_stream = command_stream.split("\n")
 
-        # TODO: A heavy refactor is in order to abstract out reused code into private internal (i.e. "_"-prefixed)
-        #       functions. A lot of this code is duplicated,the only differences being under what object attributes
-        #       get set to, and the start and end flags of the generators.
+        # TODO: Attempt to refactor the 4 distinct for loops into one to reduce code duplication
 
         # (localplayer) data
         for i in G15Stream(_g15_dumpplayer_stream, self.localplayer, self.localteam):
-            if not i.strip():
-                continue
             values = i.split()
-            if len(values) < 3:
-                if ord(values[0][len(values[0])-1:]) < 20:
-                    values.append("bytes")
-                    values.append(values[0][len(values[0])-1:])
-                else:
-                    values.append("none")
-                    values.append("(none)")
+            self._fix_values(values)
+
             varName, varType, currentValue = values[0], values[1], values[2]
+
             # parse value
-            parsed_val = None
-            if varType == "vector":
-                parsed_val = Vector3D(currentValue[1:len(currentValue)-1].split())
-            elif varType == "integer" or varType == "short":
-                parsed_val = int(currentValue[1:len(currentValue)-1])
-            elif varType == "bool":
-                parsed_val = currentValue[1:len(currentValue)-1] == "true"
-            elif varType == "float":
-                parsed_val = float(currentValue[1:len(currentValue)-1])
-            elif varType == "none":
-                parsed_val = None
-            elif varType == "bytes":
-                parsed_val = bytes(currentValue, encoding="utf8")
+            parsed_val = self._parse_value(currentValue, varType)
 
-            sub_target = None
-            if "." in varName:
-                sub_target = getattr(self._LocalPlayer, varName.split(".")[0])
-
-            _array_regex = r"\[(\d+)\]"
-            _match = re.search(_array_regex, varName)
-            if _match:
-                if sub_target is not None:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(sub_target, varName.split(".")[1].split("[")[0])
-                    _target[_idx] = parsed_val
-                else:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(self._LocalPlayer, varName.split("[")[0])
-                    _target[_idx] = parsed_val
-            else:
-                if sub_target is not None:
-                    setattr(sub_target, varName.split(".")[1], parsed_val)
-                else:
-                    setattr(self._LocalPlayer, varName, parsed_val)
+            sub_target = getattr(self._LocalPlayer, varName.split(".")[0]) if "." in varName else None
+            self._set_attribute(self._LocalPlayer, sub_target, varName, parsed_val)
 
         print(f"Stored {len(self._LocalPlayer.__dict__.keys())} values in {self._LocalPlayer.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.localteam, self.playerresource):
-            if not i.strip():
-                continue
             values = i.split()
-            if len(values) < 3:
-                if ord(values[0][len(values[0])-1:]) < 20:
-                    values.append("bytes")
-                    values.append(values[0][len(values[0])-1:])
-                else:
-                    values.append("none")
-                    values.append("(none)")
+            self._fix_values(values)
+
             varName, varType, currentValue = values[0], values[1], values[2]
+
             # parse value
-            parsed_val = None
-            if varType == "vector":
-                parsed_val = Vector3D(currentValue[1:len(currentValue)-1].split())
-            elif varType == "integer" or varType == "short":
-                parsed_val = int(currentValue[1:len(currentValue)-1])
-            elif varType == "bool":
-                parsed_val = currentValue[1:len(currentValue)-1] == "true"
-            elif varType == "float":
-                parsed_val = float(currentValue[1:len(currentValue)-1])
-            elif varType == "none":
-                parsed_val = None
-            elif varType == "bytes":
-                parsed_val = bytes(currentValue, encoding="utf8")
+            parsed_val = self._parse_value(currentValue, varType)
 
-            sub_target = None
-            if "." in varName:
-                sub_target = getattr(self._LocalTeam, varName.split(".")[0])
-
-            _array_regex = r"\[(\d+)\]"
-            _match = re.search(_array_regex, varName)
-            if _match:
-                if sub_target is not None:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(sub_target, varName.split(".")[1].split("[")[0])
-                    _target[_idx] = parsed_val
-                else:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(self._LocalTeam, varName.split("[")[0])
-                    _target[_idx] = parsed_val
-            else:
-                if sub_target is not None:
-                    setattr(sub_target, varName.split(".")[1], parsed_val)
-                else:
-                    setattr(self._LocalTeam, varName, parsed_val)
+            sub_target = getattr(self._LocalTeam, varName.split(".")[0]) if "." in varName else None
+            self._set_attribute(self._LocalTeam, sub_target, varName, parsed_val)
 
         print(f"Stored {len(self._LocalTeam.__dict__.keys())} values in {self._LocalTeam.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.playerresource, self.localplayerweapon):
-            if not i.strip():
-                continue
             values = i.split()
-            if len(values) < 3:
-                if ord(values[0][len(values[0])-1:]) < 20:
-                    values.append("bytes")
-                    values.append(values[0][len(values[0])-1:])
-                else:
-                    values.append("none")
-                    values.append("(none)")
+            self._fix_values(values)
+
             varName, varType, currentValue = values[0], values[1], values[2]
+
             # parse value
-            parsed_val = None
-            if varType == "vector":
-                parsed_val = Vector3D(currentValue[1:len(currentValue)-1].split())
-            elif varType == "integer" or varType == "short":
-                parsed_val = int(currentValue[1:len(currentValue)-1])
-            elif varType == "bool":
-                parsed_val = currentValue[1:len(currentValue)-1] == "true"
-            elif varType == "float":
-                parsed_val = float(currentValue[1:len(currentValue)-1])
-            elif varType == "none":
-                parsed_val = None
-            elif varType == "bytes":
-                parsed_val = bytes(currentValue, encoding="utf8")
+            parsed_val = self._parse_value(currentValue, varType)
 
-            sub_target = None
-            if "." in varName:
-                sub_target = getattr(self._PlayerResource, varName.split(".")[0])
-
-            _array_regex = r"\[(\d+)\]"
-            _match = re.search(_array_regex, varName)
-            if _match:
-                if sub_target is not None:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(sub_target, varName.split(".")[1].split("[")[0])
-                    _target[_idx] = parsed_val
-                else:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(self._PlayerResource, varName.split("[")[0])
-                    _target[_idx] = parsed_val
-            else:
-                if sub_target is not None:
-                    setattr(sub_target, varName.split(".")[1], parsed_val)
-                else:
-                    setattr(self._PlayerResource, varName, parsed_val)
+            sub_target = getattr(self._PlayerResource, varName.split(".")[0]) if "." in varName else None
+            self._set_attribute(self._PlayerResource, sub_target, varName, parsed_val)
 
         print(f"Stored {len(self._PlayerResource.__dict__.keys())} values in {self._PlayerResource.__class__.__name__}")
 
         for i in G15Stream(_g15_dumpplayer_stream, self.localplayerweapon, self.end):
-            if not i.strip():
-                continue
             values = i.split()
-            if len(values) < 3:
-                if ord(values[0][len(values[0])-1:]) < 20:
-                    values.append("bytes")
-                    values.append(values[0][len(values[0])-1:])
-                else:
-                    values.append("none")
-                    values.append("(none)")
+            self._fix_values(values)
+
             varName, varType, currentValue = values[0], values[1], values[2]
+
             # parse value
-            parsed_val = None
-            if varType == "vector":
-                parsed_val = Vector3D(currentValue[1:len(currentValue)-1].split())
-            elif varType == "integer" or varType == "short":
-                parsed_val = int(currentValue[1:len(currentValue)-1])
-            elif varType == "bool":
-                parsed_val = currentValue[1:len(currentValue)-1] == "true"
-            elif varType == "float":
-                parsed_val = float(currentValue[1:len(currentValue)-1])
-            elif varType == "none":
-                parsed_val = None
-            elif varType == "bytes":
-                parsed_val = bytes(currentValue, encoding="utf8")
+            parsed_val = self._parse_value(currentValue, varType)
 
-            sub_target = None
-            if "." in varName:
-                sub_target = getattr(self._PlayerResource, varName.split(".")[0])
-
-            _array_regex = r"\[(\d+)\]"
-            _match = re.search(_array_regex, varName)
-            if _match:
-                if sub_target is not None:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(sub_target, varName.split(".")[1].split("[")[0])
-                    _target[_idx] = parsed_val
-                else:
-                    _idx = int(_match.groups()[0])
-                    _target: list = getattr(self._LocalPlayerWeapon, varName.split("[")[0])
-                    _target[_idx] = parsed_val
-            else:
-                if sub_target is not None:
-                    setattr(sub_target, varName.split(".")[1], parsed_val)
-                else:
-                    setattr(self._LocalPlayerWeapon, varName, parsed_val)
+            sub_target = getattr(self._LocalPlayerWeapon, varName.split(".")[0]) if "." in varName else None
+            self._set_attribute(self._LocalPlayerWeapon, sub_target, varName, parsed_val)
 
         print(f"Stored {len(self._LocalPlayerWeapon.__dict__.keys())} values in {self._LocalPlayerWeapon.__class__.__name__}")
 
@@ -725,12 +627,12 @@ def main():
     # rcon_pword = "lilith_is_hot"
     # with FragClient(rcon_ip, rcon_port, passwd=rcon_pword) as h:
     #     resp = h.frag_run("g15_dumpplayer")
-    # with open(Path("../../../data/logs/g15_dumpplayer.log"), 'r') as h:
-    #     resp = h.read()
-    #
-    # _inst = G15DumpPlayer(resp)
-    rcon_conf = ("127.0.0.1", 27015, "lilith_is_hot")
-    _inst = do_g15(rcon_conf)
+    with open(Path("../../../data/logs/g15_dumpplayer.log"), 'r') as h:
+        resp = h.read()
+
+    _inst = G15DumpPlayer(resp)
+    # rcon_conf = ("127.0.0.1", 27015, "lilith_is_hot")
+    # _inst = do_g15(rcon_conf)
 
 
 if __name__ == "__main__":
