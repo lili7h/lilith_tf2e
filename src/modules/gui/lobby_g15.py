@@ -12,7 +12,7 @@ from typing import Literal
 
 import PySimpleGUI as sg
 
-sg.theme("DarkPurple1")
+sg.theme("DarkPurple7")
 """
 Sample UI layout in good old ascii art
  ┌──────────────────────────────────┐
@@ -32,6 +32,7 @@ Sample UI layout in good old ascii art
 
 TF2_LOGO_B64 = ""
 
+
 def create_header_button_row() -> sg.Frame:
     return sg.Frame(
         layout=[
@@ -42,6 +43,8 @@ def create_header_button_row() -> sg.Frame:
         ],
         title="",
         expand_x=True,
+        relief='raised',
+        border_width=2
     )
 
 
@@ -75,8 +78,12 @@ def create_player_listing_column(team: Literal[1, 2]) -> sg.Column:
 def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.Frame:
     # TODO: Player tiles may have to be changed
     player_tile_text_plate = sg.Column([
-        [sg.Text(player.personaname, key=f"playerNamePlate{tile_id}", font='Any 14', expand_x=True)],
         [
+            sg.Text(player, key=f"playerNamePlate{tile_id}", font='Any 14', expand_x=True),
+
+        ],
+        [
+            sg.Text(text=f"{player.pl_score} / {player.pl_deaths}", font='Any 10', expand_x=True),
             sg.Text(player.game_time, key=f"playerTimePlate{tile_id}", font='Any 12', expand_x=True),
             sg.Text(player.ping, key=f"playerPingPlate{tile_id}", font='Any 12', expand_x=True)
         ]
@@ -90,9 +97,10 @@ def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.F
         [
             sg.pin(
                 elem=sg.Image(
-                    data=TF2_LOGO_B64.encode('utf8'), subsample=32, key=f"playerIconPlate{tile_id}"
+                    data=TF2_LOGO_B64.encode('utf8'), subsample=32, key=f"playerIconPlate{tile_id}",
+                    enable_events=True,
                 ),
-                shrink=False
+                shrink=False,
             ),
             player_tile_text_plate,
             sg.pin(
@@ -102,13 +110,12 @@ def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.F
                     expand_x=False
                 ),
                 shrink=False
-            ),
-            sg.Checkbox(enable_events=True, key=f"playerCheckbox{tile_id}", text="")
+            )
         ]
     ]
 
-    _frame = sg.Frame(layout=player_tile_plate, title=f"{player.loccountrycode}", key=f"playerTileFrame{tile_id}",
-                      title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief=sg.RELIEF_RIDGE, expand_x=True,
+    _frame = sg.Frame(layout=player_tile_plate, title=f"", key=f"playerTileFrame{tile_id}",
+                      title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief='sunken', expand_x=True,
                       element_justification='right', size=(450, 90), visible=False)
 
     return _frame
@@ -169,9 +176,9 @@ def hide_all_player_tiles(window: sg.Window) -> None:
 
 def update_player_tile(window: sg.Window, player_id: int, team: Literal[1, 2], player: TF2Player) -> None:
     _db = AvCache(Path("NULL"))
-    _img_b64_stream = _db.get_avatar(player.avatarhash)
-    if _img_b64_stream is None:
-        _db.cache_avatar(player.avatarhash, player.avatarfull)
+    img_path = _db.get_image(player.avatarhash)
+    if img_path is None:
+        _db.cache_image(player.avatarhash, player.avatarfull)
 
     _tid = team * 100 + player_id
     _name: sg.Text = window[f"playerNamePlate{_tid}"]
@@ -184,8 +191,8 @@ def update_player_tile(window: sg.Window, player_id: int, team: Literal[1, 2], p
     _name.update(value=player.personaname, visible=True, text_color=player.association.color)
     _time.update(value=player.game_time, visible=True)
     _ping.update(value=f"{player.ping}ms", visible=True)
-    if _img_b64_stream is not None:
-        _icon.update(visible=True, data=_img_b64_stream.encode('utf8'))
+    if img_path is not None:
+        _icon.update(visible=True, source=str(img_path), subsample=3)
 
     # print(_img_b64_stream)
     # TODO: update icon somehow
@@ -307,13 +314,20 @@ def update_status(window_: sg.Window, loader: TF2eLoader) -> None:
 
 
 def main(loader: TF2eLoader, lobby_watcher: lobby.LobbyWatching):
-    sg.theme("DarkPurple1")
+    sg.theme("DarkPurple7")
     window = build_window()
+
     _last_update: datetime = lobby_watcher.lobby.last_update
+    window.finalize()
     while True:
-        event, values = window.read(timeout=5)
+        event, values = window.read(timeout=1)
         if event == sg.WIN_CLOSED:
             break
+
+        if event == "image clicked":
+            print(values.keys())
+            # TODO: Complete image click handler to updated the detail info to this user
+            #       Note that the username component of the user frame stores the entire player object
 
         if _last_update != lobby_watcher.lobby.last_update:
             update_players(window_=window, lobby_watcher=lobby_watcher)

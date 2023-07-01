@@ -324,6 +324,7 @@ class IntVarPlayerResource:
     m_bReloadedThroughAnimEvent: bool = None
     m_flProxyRandomValue: float = None
     m_bDisguiseWeapon: bool = None
+    m_flEncodedController: list[float] = None
 
     def __init__(self):
         self.m_szName: list[str] = [""] * 34
@@ -337,6 +338,7 @@ class IntVarPlayerResource:
         self.m_iAccountID: list[int] = [0] * 34
         self.m_iUserID: list[int] = [0] * 34
         self.m_bValid: list[bool] = [False] * 34
+        self.m_flEncodedController: list[float] = [0.0] * 4
 
 
 class IntVarLocalPlayerWeapon:
@@ -508,17 +510,46 @@ class G15DumpPlayer:
         if _match:
             if sub_target is not None:
                 _idx = int(_match.groups()[0])
-                _target: list = getattr(sub_target, var_name.split(".")[1].split("[")[0])
-                _target[_idx] = parsed_val
+                try:
+                    _target: list = getattr(sub_target, var_name.split(".")[1].split("[")[0])
+                    _target[_idx] = parsed_val
+                except AttributeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
+                except TypeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
+
             else:
                 _idx = int(_match.groups()[0])
-                _target: list = getattr(primary_target, var_name.split("[")[0])
-                _target[_idx] = parsed_val
+                try:
+                    _target: list = getattr(primary_target, var_name.split("[")[0])
+                    _target[_idx] = parsed_val
+                except AttributeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
+                except TypeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
         else:
             if sub_target is not None:
-                setattr(sub_target, var_name.split(".")[1], parsed_val)
+                try:
+                    setattr(sub_target, var_name.split(".")[1], parsed_val)
+                except AttributeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
+                except TypeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
             else:
-                setattr(primary_target, var_name, parsed_val)
+                try:
+                    setattr(primary_target, var_name, parsed_val)
+                except AttributeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
+                except TypeError:
+                    loguru.logger.warning(f"Got unprepared attribute {var_name} for {primary_target}, ignoring...")
+                    return
 
     def __init__(self, command_stream: str) -> None:
         """

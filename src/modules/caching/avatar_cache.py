@@ -1,4 +1,5 @@
 import datetime
+import os
 from pathlib import Path
 from PIL import Image
 from io import BytesIO
@@ -6,30 +7,12 @@ from threading import Lock
 
 import base64
 import requests
-import sqlite3
 import loguru
 
-avatars_table_template = """
-CREATE TABLE IF NOT EXISTS avatars (
-    avhash text PRIMARY KEY,
-    avdata text NOT NULL,
-    cache_date text NOT NULL
-);
-"""
 
-avatars_table_insert = """
-INSERT INTO avatars(avhash,avdata,cache_date)
-VALUES(?,?,?);
-"""
-
-avatars_table_get = """
-SELECT avdata FROM avatars WHERE avhash=?
-"""
-
-
-class DBSingletonManager(type):
+class CacheSingletonManager(type):
     """
-    Singleton metaclass for managing the AssetLoadPhaseLogger singleton. Do not attempt to directly instantiate,
+    Singleton metaclass for managing the singleton meta type. Do not attempt to directly instantiate,
     reference or otherwise use this class. Its function is autonomous.
     """
     _instances = {}
@@ -44,71 +27,77 @@ class DBSingletonManager(type):
         return cls._instances[cls]
 
 
-class AvCache(metaclass=DBSingletonManager):
-    conn: sqlite3.Connection = None
+class AvCache(metaclass=CacheSingletonManager):
+    cache_path: Path = None
+    indexes: dict[str, Path] = None
 
-    def __init__(self, data_path: Path):
-        if self.conn is None:
-            self._create_connection(data_path.joinpath("cache/avatars/avcache.db"))
-            self._create_table()
+    def __init__(self, cache_path: Path) -> None:
+        if self.cache_path is None:
+            self.cache_path = cache_path
+            self.convert_jpegs()
+        if self.indexes is None:
+            self.indexes = {}
+            for _img in self.cache_path.glob("*.png"):
+                self.indexes[_img.name.split(".")[0]] = _img
 
-    def _create_connection(self, db_file: Path):
-        """ create a database connection to a SQLite database """
-        _path = str(db_file)
-        try:
-            self.conn = sqlite3.connect(_path)
-            loguru.logger.success(f"Connected to AvCache DB - with sqlite v{sqlite3.version}")
-        except sqlite3.Error as e:
-            loguru.logger.error(f"couldn't establish db conn to AvCache DB at {_path}. {e}")
+    def convert_jpegs(self) -> None:
+        to_remove = []
+        for _img in self.cache_path.glob("*.jpg"):
+            im = Image.open(str(_img))
+            im.save(f'{self.cache_path}/{_img.name.split(".")[0]}.png')
+            to_remove.append(_img)
 
-    def _create_table(self):
-        try:
-            c = self.conn.cursor()
-            c.execute(avatars_table_template)
-        except sqlite3.Error as e:
-            loguru.logger.error(f"Failed to create table for AvCache. {e}")
+        for _p in to_remove:
+            os.remove(str(_p))
 
-    def cache_avatar(self, avatar_hash: str, avatar_url: str) -> None:
-        cur = self.conn.cursor()
-        cur.execute(avatars_table_get, (avatar_hash,))
-        rows = cur.fetchall()
-
-        if rows:
-            return  # already cached this avatar
-
-        if not (avatar_url.startswith("https://avatars.akamai.steamstatic.com/")
-                or avatar_url.startswith("https://avatars.steamstatic.com/")):
+    def cache_image(self, img_hash: str, img_url: str) -> bool:
+        if not (img_url.startswith("https://avatars.akamai.steamstatic.com/")
+                or img_url.startswith("https://avatars.steamstatic.com/")):
             loguru.logger.error(f"Attempted to fetch avatar image from outside of Steams CDN. "
-                                f"Aborting for safety. {avatar_url}")
-            return
+                                f"Aborting for safety. {img_url}")
+            return False
+        try:
+            _img_path = self.indexes[img_hash]
+            if _img_path is not None:
+                return True
+        except KeyError:
+            pass
 
-        response = requests.get(avatar_url)
+        response = requests.get(img_url)
         image_bytes = response.content
-        image_b64 = base64.b64encode(image_bytes)
+        with open(f'{self.cache_path}/{img_hash}.jpg', 'wb') as h:
+            h.write(image_bytes)
 
-        cur = self.conn.cursor()
-        cur.execute(avatars_table_insert,
-                    (avatar_hash, image_b64.decode('utf8'), datetime.datetime.now().strftime("%d/%m/%Y, %H:%M:%S")))
-        self.conn.commit()
+        im = Image.open(f'{self.cache_path}/{img_hash}.jpg')
+        im.save(f'{self.cache_path}/{img_hash}.png')
 
-    def get_avatar(self, avatar_hash: str) -> None | str:
-        cur = self.conn.cursor()
-        cur.execute(avatars_table_get, (avatar_hash,))
-        rows = cur.fetchall()
+        os.remove(f'{self.cache_path}/{img_hash}.jpg')
 
-        for row in rows:
-            return row[0]
+        self.indexes[img_hash] = self.cache_path.joinpath(f'{img_hash}.png')
 
-        return None
+        return True
+
+    def get_image(self, img_hash) -> Path | None:
+        try:
+            _img_path = self.indexes[img_hash]
+            return _img_path
+        except KeyError:
+            return None
 
 
 def main():
+    avatar_hash = "427ef7d5f8ad7b21678f69bc8afc95786cf38fe6"
     avatar_url = "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6_full.jpg"
-    response = requests.get(avatar_url)
-    image_bytes = response.content
-    image_b64 = base64.b64encode(image_bytes)
+    cache_path = Path('../../../data/cache/avatars/')
+    _inst = AvCache(cache_path)
+    cached = _inst.cache_image(avatar_hash, avatar_url)
 
-    print(image_b64.decode('utf8'))
+    if cached:
+        print("Succesfully cached image.")
+
+    _img_path = _inst.get_image(avatar_hash)
+    if _img_path:
+        print(f"Image located at {_img_path}")
 
 
 if __name__ == "__main__":

@@ -216,7 +216,7 @@ class TF2Player:
 
             if self.avatarhash is not None and self.avatarfull is not None:
                 _db = AvCache(Path("NULL"))  # path should be initialised at this point because singleton.
-                _db.cache_avatar(self.avatarhash, self.avatarfull)
+                _db.cache_image(self.avatarhash, self.avatarfull)
         except IndexError:
             return
 
@@ -392,7 +392,12 @@ class TF2Lobby:
 
     def update_from_g15(self):
         """ Update the player entries from a `g15_dumpplayer` command invocation. """
-        _g15_dump = do_g15(self.rcon_conf)
+        try:
+            _g15_dump = do_g15(self.rcon_conf)
+        except ValueError:
+            return
+        except IndexError:
+            return
         _to_remove = []
         _found = []
 

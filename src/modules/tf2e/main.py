@@ -70,7 +70,7 @@ class TF2eLoader:
         loguru.logger.success(f"Steam API client initialised...")
 
         loguru.logger.info(f"Initialising the avatar cache DB...")
-        self.av_cache = avcache.AvCache(data_path)
+        self.av_cache = avcache.AvCache(data_path.joinpath("cache/avatars/"))
         loguru.logger.success(f"avatar cache DB client initialised...")
 
 

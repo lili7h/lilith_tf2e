@@ -2,3 +2,4 @@
 .vscode/
 data/.env
 **/__pycache__/
+data/cache/avatars/
