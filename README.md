@@ -26,12 +26,16 @@ This table will be added to as tasks are planned and as each task evolves.
 |                                                               |                  |                  |                         |                                                                                      |                                                                                                                                                           |                                           |
 
 # Current in progress
-~~Currently working on the `gui/lobbyviewer.py` simple GUI class, and it is fairly functional given a complete `data/` directory. ~~
 
-We are on to version 0.2.1 of the SimpleLobbyViewer, and already working to refactor it _again_, as we now can integrate
-more, higher quality, data from `g15_dumpplayer` to better handle player instances, interleaving and data stagnation.
+Cleaning up and preparing for 3rd refactor of the UI code for the g15 viewer (simple lobby viewer class that interprets
+`g15_dumpplayer` data). Looking into grabbing `PySimpleGui_Events` to handle app events better. Need to start implementing
+classes in the GUI packages to encapsulate data better.
 
-Example:
+G15 Lobby Viewer Example:
+![Functioning G15 lobby viewer from a random tf2 lobby i was in](docs/pictures/g15viewer.png)
+
+
+(OLD) Simple Lobby Viewer Example:
 ![Functioning simple lobby viewer from a random TF2 lobby I was in](docs/pictures/gui.lobbyviewer.png)
 
 **NOTE:**  
