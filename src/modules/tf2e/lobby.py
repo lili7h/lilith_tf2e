@@ -23,6 +23,7 @@ import schedule
 
 
 class PlayerAssociation(ABC):
+    icon_str = NotImplemented
     label: str = None
     color: str = None  # american spelling to make linters happy >:3
 
@@ -39,6 +40,7 @@ class PlayerAssociation(ABC):
 
 
 class Friend(PlayerAssociation):
+    icon_str = "friend"
 
     def __init__(self) -> None:
         super().__init__(label="Friend", color="green")
@@ -48,6 +50,7 @@ class Friend(PlayerAssociation):
 
 
 class Trusted(PlayerAssociation):
+    icon_str = "trusted"
 
     def __init__(self) -> None:
         super().__init__(label="Trusted", color="cyan")
@@ -57,6 +60,7 @@ class Trusted(PlayerAssociation):
 
 
 class Neutral(PlayerAssociation):
+    icon_str = "unknown"
 
     def __init__(self) -> None:
         super().__init__(label="Neutral", color="gray")
@@ -66,6 +70,7 @@ class Neutral(PlayerAssociation):
 
 
 class Suspicious(PlayerAssociation):
+    icon_str = "sus"
 
     def __init__(self) -> None:
         super().__init__(label="Suspicious", color="yellow")
@@ -75,6 +80,7 @@ class Suspicious(PlayerAssociation):
 
 
 class Cheater(PlayerAssociation):
+    icon_str = "cheater"
 
     def __init__(self) -> None:
         super().__init__(label="Cheater", color="red")
@@ -84,6 +90,7 @@ class Cheater(PlayerAssociation):
 
 
 class Bot(PlayerAssociation):
+    icon_str = "bot"
 
     def __init__(self) -> None:
         super().__init__(label="Bot", color="orange")
@@ -93,6 +100,7 @@ class Bot(PlayerAssociation):
 
 
 class Phobic(PlayerAssociation):
+    icon_str = "unknown"  # TODO: Create an 'asshole' icon
 
     def __init__(self) -> None:
         super().__init__(label="Phobic", color="brown")
@@ -140,6 +148,12 @@ class DummyTF2Player:
 
     profile_init: bool = True
     association: PlayerAssociation = Neutral()
+    game_team: Team = None
+    pl_health: int = None
+    pl_ammo: int = None
+    ig_id: int = None
+    pl_score: int = None
+    pl_deaths: int = None
 
     dummy_id: int = None
 
@@ -255,6 +269,9 @@ class TF2Player:
         if not self.profile_init:
             self._lookup_profile()
 
+    def set_association(self, association: PlayerAssociation) -> None:
+        self.association = association
+
     def __str__(self) -> str:
         return self.personaname
 
@@ -302,6 +319,14 @@ class TF2Lobby:
             self.update_from_g15,
         ]
         self.update_location = 0
+
+    def get_player_by_nick(self, nickname: str) -> TF2Player | None:
+        with self.lobby_lock:
+            for _pl in self.players:
+                if _pl.personaname == nickname:
+                    return _pl
+
+        return None
 
     def set_iclients(self, rcon_client, steam_client) -> None:
         self.rcon = rcon_client

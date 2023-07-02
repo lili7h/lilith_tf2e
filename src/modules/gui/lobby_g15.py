@@ -9,28 +9,208 @@ from src.modules.tf2e import lobby
 from pathlib import Path
 from datetime import datetime
 from typing import Literal
+from PIL import Image
 
 import PySimpleGUI as sg
 
 sg.theme("DarkPurple7")
-"""
-Sample UI layout in good old ascii art
- ┌──────────────────────────────────┐
- ││sync│ │update│ │github│ │about│  │ 
- ├──────────────────────────────────┤
- │┌────────┐ ┌──────────┐ ┌────────┐│
- ││ Team 1 │ │  Lilith  │ │ Team 2 ││
- │├────────┤ │  SLV v2  │ ├────────┤│
- ││        │ └──────────┘ │        ││
- ││        │ ┌──────────┐ │        ││
- ││        │ │ selected │ │        ││
- ││        │ │ players  │ │        ││ 
- ││        │ │ stats    │ │        ││
- │└────────┘ └──────────┘ └────────┘│
- └──────────────────────────────────┘
-"""
-
 TF2_LOGO_B64 = ""
+
+
+class G15Viewer:
+    """
+    Sample UI layout in good old ascii art
+     ┌──────────────────────────────────┐
+     ││sync│ │update│ │github│ │about│  │
+     ├──────────────────────────────────┤
+     │┌──────────┐ ┌────────┐ ┌────────┐│
+     ││  Lilith  │ │ Team 1 │ │ Team 2 ││
+     ││  G15V v3 │ ├────────┤ ├────────┤│
+     │├──────────┤ │        │ │        ││
+     ││          │ │        │ │        ││
+     ││ selected │ │        │ │        ││
+     ││ players  │ │        │ │        ││
+     ││ stats    │ │        │ │        ││
+     │└──────────┘ └────────┘ └────────┘│
+     └──────────────────────────────────┘
+    """
+    RED_TEAM_PLAYER_HEADER_KEY: str = "redTeamPlayerHeader"
+    RED_TEAM_PLAYER_HEADER_IMG: Path = None  # 420 x 100
+    RED_TEAM_PLAYER_TILEBG_KEY: str = "bluTeamPlayerTileBG"
+    RED_TEAM_PLAYER_TILEBG_IMG: Path = None  # 420 x 140
+
+    BLU_TEAM_PLAYER_HEADER_KEY: str = "bluTeamPlayerHeader"
+    BLU_TEAM_PLAYER_HEADER_IMG: Path = None  # 420 x 100
+    BLU_TEAM_PLAYER_TILEBG_KEY: str = "bluTeamPlayerTileBG"
+    BLU_TEAM_PLAYER_TILEBG_IMG: Path = None  # 420 x 140
+
+    UNKNOWN_PLAYER_ICON_KEY: str = "unknownPlayerIcon"
+    BOT_PLAYER_ICON_KEY: str = "botPlayerIcon"
+    CHEATER_PLAYER_ICON_KEY: str = "cheaterPlayerIcon"
+    SUS_PLAYER_ICON_KEY: str = "susPlayerIcon"
+    TRUSTED_PLAYER_ICON_KEY: str = "trustedPlayerIcon"
+    FRIEND_PLAYER_ICON_KEY: str = "friendPlayerIcon"
+
+    UNKNOWN_PLAYER_ICON_IMG: Path = None  # 64x64
+    BOT_PLAYER_ICON_IMG: Path = None  # 64x64
+    CHEATER_PLAYER_ICON_IMG: Path = None  # 64x64
+    SUS_PLAYER_ICON_IMG: Path = None  # 64x64
+    TRUSTED_PLAYER_ICON_IMG: Path = None  # 64x64
+    FRIEND_PLAYER_ICON_IMG: Path = None  # 64x64
+
+    ABOUT_HEADER_KEY: str = "aboutHeader"
+    ABOUT_HEADER_IMG: Path = None
+
+    DETAILS_HEADER_KEY: str = "detailsHeaderImage"
+    DETAILS_HEADER_IMG: Path = None
+
+    player_mappings: dict[int, TF2Player] = None
+    player_tile_ids: dict[str, dict[str, int | TF2Player]] = None
+    player_tiles: list[list[sg.Element]] = None
+    av_cache: AvCache = None
+
+    def __init__(self, data_path: Path) -> None:
+        self.RED_TEAM_PLAYER_TILEBG_IMG = data_path.joinpath("images/icons/player_tile_red.png")
+        self.BLU_TEAM_PLAYER_TILEBG_IMG = data_path.joinpath("images/icons/player_tile_blue.png")
+
+        self.BLU_TEAM_PLAYER_HEADER_IMG = data_path.joinpath("images/icons/blue_team_header.png")
+        self.RED_TEAM_PLAYER_HEADER_IMG = data_path.joinpath("images/icons/red_team_header.png")
+
+        self.UNKNOWN_PLAYER_ICON_IMG = data_path.joinpath("images/icons/unknown_icon.png")
+        self.BOT_PLAYER_ICON_IMG = data_path.joinpath("images/icons/bot_icon.png")
+        self.CHEATER_PLAYER_ICON_IMG = data_path.joinpath("images/icons/cheater_icon.png")
+        self.SUS_PLAYER_ICON_IMG = data_path.joinpath("images/icons/sus_icon.png")
+        self.TRUSTED_PLAYER_ICON_IMG = data_path.joinpath("images/icons/trusted_icon.png")
+        self.FRIEND_PLAYER_ICON_IMG = data_path.joinpath("images/icons/friend_icon.png")
+
+        self.ABOUT_HEADER_IMG = data_path.joinpath("images/icons/about_v050a.png")
+        self.DETAILS_HEADER_IMG = data_path.joinpath("images/icons/details_header.png")
+
+        self.player_mappings = {}
+        self.player_tile_ids = {}
+        self.av_cache = AvCache(data_path.joinpath("cache/avatars/"))
+
+        graphs = self.make_graphs('red')
+        _column = sg.Column(
+            layout=[[x] for x in graphs],
+            scrollable=True,
+            vertical_scroll_only=True,
+            size=(430, 800)
+        )
+        _frame = sg.Frame(
+            title="Test frame",
+            layout=[[_column]]
+        )
+        _window = sg.Window("Testing", layout=[[_frame]], resizable=True, finalize=True)
+        _graph1 = self.build_player_tile(graphs[0],
+                                         ("Numerose", 127, "00:35:32", "fe4874a7aafdbd7a80a955fcdcdd1055786254e4", "trusted"))
+        _graph2 = self.build_player_tile(graphs[1],
+                                         ("Bash09", 21, "00:42:18", "dcced253efe0503e6a02ee7cd5a7e6c00ba22df6", "cheater"))
+        _graph3 = self.build_player_tile(graphs[2],
+                                         ("Lilith", 19, "01:27:54", "b4ba244d60361e553a7d6b76c04ca46c307e3329", "friend"))
+        _graph4 = self.build_player_tile(graphs[3],
+                                         ("megascatterbomb", 56, "00:15:32", "53b56293713c041a29e8c14b2480c020873c33c0", "bot"))
+
+        while True:
+            event, values = _window.read(timeout=125)
+            if event == sg.WIN_CLOSED:
+                break
+            _window.refresh()
+
+    @staticmethod
+    def _resize_image(image_path: str) -> str:
+        img = (Image.open(image_path))
+        resized = img.resize((64, 64), Image.LANCZOS)
+        _new_path = image_path.replace(".png", "_64.png")
+        resized.save(_new_path)
+        return _new_path
+
+    @staticmethod
+    def make_graphs(team: Literal['red', 'blu']) -> list[sg.Graph]:
+        graphs = []
+        for i in range(16):
+            graph = sg.Graph(
+                canvas_size=(420, 140), graph_bottom_left=(0, 0), graph_top_right=(420, 140), enable_events=True,
+                drag_submits=True, key=f"testGraph{team}{i}"
+            )
+            graphs.append(graph)
+        return graphs
+
+    def make_player_columns(self) -> tuple[sg.Column, sg.Column]:
+        graphs_red = self.make_graphs('red')
+        graphs_blue = self.make_graphs('blu')
+        _column_red = sg.Column(
+            layout=[[x] for x in graphs_red],
+            scrollable=True,
+            vertical_scroll_only=True,
+            size=(430, 800),
+            key="redTeamPlayerTilesColumn"
+        )
+        _column_blu = sg.Column(
+            layout=[[x] for x in graphs_blue],
+            scrollable=True,
+            vertical_scroll_only=True,
+            size=(430, 800),
+            key="bluTeamPlayerTilesColumn"
+        )
+        return _column_blu, _column_red
+
+    def build_player_tile(self, graph: sg.Graph, player: TF2Player) -> dict:
+        MAX_NAME_LEN = 24
+        PLAYER_TILE_WIDTH = 420
+        PLAYER_TILE_HEIGHT = 140
+
+        _name = player.personaname
+
+        _fn = None
+        if player.game_team == Team.Blue:
+            _fn = self.BLU_TEAM_PLAYER_TILEBG_IMG
+        else:
+            _fn = self.RED_TEAM_PLAYER_TILEBG_IMG
+
+        _img_id = graph.draw_image(
+            filename=str(_fn),
+            location=(0, PLAYER_TILE_HEIGHT),
+        )
+        _association_icon_id = graph.draw_image(
+            filename=str(self.UNKNOWN_PLAYER_ICON_IMG).replace("unknown", player.association.icon_str),
+            location=(PLAYER_TILE_WIDTH / 1.53, PLAYER_TILE_HEIGHT / 2)
+        )
+        img_path = self._resize_image(str(self.av_cache.get_image(player.avatarhash)))
+        _pfp_icon_id = graph.draw_image(
+            filename=img_path,
+            location=(PLAYER_TILE_WIDTH / 6.6, PLAYER_TILE_HEIGHT / 2)
+        )
+
+        if len(_name) > MAX_NAME_LEN:  # truncate name when too long
+            _name = _name[:MAX_NAME_LEN] + "..."
+
+        _name_id = graph.draw_text(text=_name,
+                                   location=(PLAYER_TILE_WIDTH / 1.83, PLAYER_TILE_HEIGHT / 1.3),
+                                   color='white', font='CIKANDEI 32')
+        _ping_id = graph.draw_text(text=f"{player.ping}ms",
+                                   location=(PLAYER_TILE_WIDTH / 1.91, PLAYER_TILE_HEIGHT / 2.8),
+                                   color='white', font='CIKANDEI 24')
+        _time_id = graph.draw_text(text=player.game_time,
+                                   location=(PLAYER_TILE_WIDTH / 2, PLAYER_TILE_HEIGHT / 7),
+                                   color='white', font='CIKANDEI 24')
+        self.player_tile_ids[player.steamID64] = {
+            "name": _name_id,
+            "ping": _ping_id,
+            "time": _time_id,
+            "pfp": _pfp_icon_id,
+            "association": _association_icon_id,
+            "bg": _img_id,
+            "player": player,
+        }
+        return self.player_tile_ids[player.steamID64]
+
+    def left_wing(self) -> None:
+        sg.Column(
+            layout=[
+                [sg.Image(filename=str(self.ABOUT_HEADER_IMG), key=self.ABOUT_HEADER_KEY)]
+            ]
+        )
 
 
 def create_header_button_row() -> sg.Frame:
@@ -83,7 +263,8 @@ def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.F
 
         ],
         [
-            sg.Text(text=f"{player.pl_score} / {player.pl_deaths}", font='Any 10', expand_x=True),
+            sg.Text(text=f"{player.pl_score} / {player.pl_deaths}", font='Any 10', expand_x=True,
+                    key=f"playerScorePlate{tile_id}"),
             sg.Text(player.game_time, key=f"playerTimePlate{tile_id}", font='Any 12', expand_x=True),
             sg.Text(player.ping, key=f"playerPingPlate{tile_id}", font='Any 12', expand_x=True)
         ]
@@ -116,7 +297,7 @@ def create_player_tile(tile_id: int, player: TF2Player | DummyTF2Player) -> sg.F
 
     _frame = sg.Frame(layout=player_tile_plate, title=f"", key=f"playerTileFrame{tile_id}",
                       title_location=sg.TITLE_LOCATION_BOTTOM_RIGHT, relief='sunken', expand_x=True,
-                      element_justification='right', size=(450, 90), visible=False)
+                      element_justification='right', size=(450, 70), visible=False)
 
     return _frame
 
@@ -163,13 +344,11 @@ def hide_all_player_tiles(window: sg.Window) -> None:
             _ping: sg.Text = window[f"playerPingPlate{_tid}"]
             _icon: sg.Image = window[f"playerIconPlate{_tid}"]
             _combo: sg.Combo = window[f"playerAssociationCombo{_tid}"]
-            _cb: sg.Checkbox = window[f"playerCheckbox{_tid}"]
 
             _name.update(value="")
             _time.update(value="")
             _ping.update(value="")
             # TODO: update icon somehow
-            _cb.update(value=False)
 
             window[f"playerTileFrame{_tid}"].update(visible=False)
 
@@ -184,20 +363,20 @@ def update_player_tile(window: sg.Window, player_id: int, team: Literal[1, 2], p
     _name: sg.Text = window[f"playerNamePlate{_tid}"]
     _time: sg.Text = window[f"playerTimePlate{_tid}"]
     _ping: sg.Text = window[f"playerPingPlate{_tid}"]
+    _score: sg.Text = window[f"playerScorePlate{_tid}"]
     _icon: sg.Image = window[f"playerIconPlate{_tid}"]
     _combo: sg.Combo = window[f"playerAssociationCombo{_tid}"]
-    _cb: sg.Checkbox = window[f"playerCheckbox{_tid}"]
 
     _name.update(value=player.personaname, visible=True, text_color=player.association.color)
     _time.update(value=player.game_time, visible=True)
     _ping.update(value=f"{player.ping}ms", visible=True)
+    _score.update(value=f"{player.pl_score} / {player.pl_deaths}")
     if img_path is not None:
         _icon.update(visible=True, source=str(img_path), subsample=3)
 
     # print(_img_b64_stream)
     # TODO: update icon somehow
     _combo.update(value=player.association, visible=True)
-    _cb.update(visible=True, value=False)
 
     window[f"playerTileFrame{_tid}"].update(visible=True)
 
@@ -254,6 +433,27 @@ def create_detail_data_frame() -> sg.Frame:
         key=f"selectedPlayerListFrame",
         expand_x=True, expand_y=True,
     )
+
+
+def update_player_details(window: sg.Window, player: TF2Player) -> None:
+    _ident = f"SelectedPlayer"
+    try:
+        _pl_tc = datetime.fromtimestamp(player.timecreated)
+    except TypeError:
+        _pl_tc = "unknown"
+
+    _vals = {"name": player.personaname,
+             "sid3": player.steamID3,
+             "sid64": player.steamID64,
+             "purl": player.profileurl,
+             "loc": player.loccountrycode,
+             "created": _pl_tc,
+             "vac": "--not implemented--"}
+
+    for _k in _vals:
+        window[f"{_k}{_ident}"].update(_vals[_k])
+
+    window.refresh()
 
 
 def main_layout() -> sg.Frame:
@@ -320,14 +520,22 @@ def main(loader: TF2eLoader, lobby_watcher: lobby.LobbyWatching):
     _last_update: datetime = lobby_watcher.lobby.last_update
     window.finalize()
     while True:
-        event, values = window.read(timeout=1)
+        event, values = window.read(timeout=125)
         if event == sg.WIN_CLOSED:
             break
-
-        if event == "image clicked":
-            print(values.keys())
+        if event and event != sg.TIMEOUT_EVENT:
+            print(event)
             # TODO: Complete image click handler to updated the detail info to this user
             #       Note that the username component of the user frame stores the entire player object
+            if event.startswith("playerIconPlate"):
+
+                _tid = event.strip().replace("playerIconPlate", "")
+                _name: sg.Text = window[f"playerNamePlate{_tid}"]
+                _pl = lobby_watcher.lobby.get_player_by_nick(_name.get())
+                print(_pl)
+                if _pl is not None:
+                    update_player_details(window, _pl)
+                    set_detail_data_column_style(window)
 
         if _last_update != lobby_watcher.lobby.last_update:
             update_players(window_=window, lobby_watcher=lobby_watcher)
@@ -344,11 +552,12 @@ def main(loader: TF2eLoader, lobby_watcher: lobby.LobbyWatching):
 
 if __name__ == "__main__":
     _data_path = Path("../../../data/")
-    client_loader = TF2eLoader(_data_path)
-    game_lobby = lobby.LobbyWatching(client_loader.rcon_client, client_loader.steam_client)
-    game_lobby.lobby.connect_listener(client_loader.log_listener)
-
-    with open(str(_data_path.joinpath("images/tf2b64.txt")), 'r') as h:
-        TF2_LOGO_B64 = h.read()
-
-    main(client_loader, game_lobby)
+    _inst = G15Viewer(_data_path)
+    # client_loader = TF2eLoader(_data_path)
+    # game_lobby = lobby.LobbyWatching(client_loader.rcon_client, client_loader.steam_client)
+    # game_lobby.lobby.connect_listener(client_loader.log_listener)
+    #
+    # with open(str(_data_path.joinpath("images/tf2b64.txt")), 'r') as h:
+    #     TF2_LOGO_B64 = h.read()
+    #
+    # main(client_loader, game_lobby)
