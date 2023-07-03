@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Literal
 from PIL import Image
 
+import tkinter as tk
 import PySimpleGUI as sg
 
 sg.theme("DarkPurple7")
@@ -20,19 +21,22 @@ TF2_LOGO_B64 = ""
 class G15Viewer:
     """
     Sample UI layout in good old ascii art
-     ┌──────────────────────────────────┐
-     ││sync│ │update│ │github│ │about│  │
-     ├──────────────────────────────────┤
-     │┌──────────┐ ┌────────┐ ┌────────┐│
-     ││  Lilith  │ │ Team 1 │ │ Team 2 ││
-     ││  G15V v3 │ ├────────┤ ├────────┤│
-     │├──────────┤ │        │ │        ││
-     ││          │ │        │ │        ││
-     ││ selected │ │        │ │        ││
-     ││ players  │ │        │ │        ││
-     ││ stats    │ │        │ │        ││
-     │└──────────┘ └────────┘ └────────┘│
-     └──────────────────────────────────┘
+    `┌──────────────────────────────────┐`
+    `││sync│ │update│ │github│ │about│  │`
+    `├──────────────────────────────────┤`
+    `│┌──────────┐ ┌────────┐ ┌────────┐│`
+    `││  Lilith  │ │ Team 1 │ │ Team 2 ││`
+    `││  G15V v3 │ ├────────┤ ├────────┤│`
+    `│├──────────┤ │        │ │        ││`
+    `││          │ │        │ │        ││`
+    `││ selected │ │        │ │        ││`
+    `││ players  │ │        │ │        ││`
+    `││ stats    │ │        │ │        ││`
+    `│└──────────┘ └────────┘ └────────┘│`
+    `└──────────────────────────────────┘`
+
+    TODO:
+        - Implement an on-launch font installer to load `data/fonts/*` into the font space for PySimpleGUI/TKinter
     """
     RED_TEAM_PLAYER_HEADER_KEY: str = "redTeamPlayerHeader"
     RED_TEAM_PLAYER_HEADER_IMG: Path = None  # 420 x 100
@@ -64,10 +68,27 @@ class G15Viewer:
     DETAILS_HEADER_KEY: str = "detailsHeaderImage"
     DETAILS_HEADER_IMG: Path = None
 
+    DETAILS_NAME_KEY: str = 'nameSelectedPlayer'
+    DETAILS_SID_KEY: str = 'sid3SelectedPlayer'
+    DETAILS_SID64_KEY: str = 'sid64SelectedPlayer'
+    DETAILS_PURL_KEY: str = 'purlSelectedPlayer'
+    DETAILS_LOC_KEY: str = 'locSelectedPlayer'
+    DETAILS_CREATED_KEY: str = 'createdSelectedPlayer'
+    DETAILS_VAC_KEY: str = 'vacSelectedPlayer'
+
+    graphs_red: list[sg.Graph] = None
+    graphs_red_ids: list[dict] = None
+    graphs_blue: list[sg.Graph] = None
+    graphs_blue_ids: list[dict] = None
+
     player_mappings: dict[int, TF2Player] = None
     player_tile_ids: dict[str, dict[str, int | TF2Player]] = None
-    player_tiles: list[list[sg.Element]] = None
     av_cache: AvCache = None
+
+    window: sg.Window = None
+    loader: TF2eLoader = None
+    lobby = None
+    last_update: datetime = None
 
     def __init__(self, data_path: Path) -> None:
         self.RED_TEAM_PLAYER_TILEBG_IMG = data_path.joinpath("images/icons/player_tile_red.png")
@@ -88,34 +109,44 @@ class G15Viewer:
 
         self.player_mappings = {}
         self.player_tile_ids = {}
-        self.av_cache = AvCache(data_path.joinpath("cache/avatars/"))
+        self.loader = TF2eLoader(data_path)
+        self.lobby = lobby.LobbyWatching(self.loader.rcon_client, self.loader.steam_client)
+        self.lobby.lobby.connect_listener(self.loader.log_listener)
+        self.av_cache = self.loader.av_cache
+        # self.av_cache = AvCache(data_path.joinpath("cache/avadatars/"))
 
-        graphs = self.make_graphs('red')
-        _column = sg.Column(
-            layout=[[x] for x in graphs],
-            scrollable=True,
-            vertical_scroll_only=True,
-            size=(430, 800)
-        )
-        _frame = sg.Frame(
-            title="Test frame",
-            layout=[[_column]]
-        )
-        _window = sg.Window("Testing", layout=[[_frame]], resizable=True, finalize=True)
-        _graph1 = self.build_player_tile(graphs[0],
-                                         ("Numerose", 127, "00:35:32", "fe4874a7aafdbd7a80a955fcdcdd1055786254e4", "trusted"))
-        _graph2 = self.build_player_tile(graphs[1],
-                                         ("Bash09", 21, "00:42:18", "dcced253efe0503e6a02ee7cd5a7e6c00ba22df6", "cheater"))
-        _graph3 = self.build_player_tile(graphs[2],
-                                         ("Lilith", 19, "01:27:54", "b4ba244d60361e553a7d6b76c04ca46c307e3329", "friend"))
-        _graph4 = self.build_player_tile(graphs[3],
-                                         ("megascatterbomb", 56, "00:15:32", "53b56293713c041a29e8c14b2480c020873c33c0", "bot"))
+        _frame = self.build_layout()
+        self.window = sg.Window("Testing", layout=[[_frame]], resizable=True, finalize=True)
+        self.set_detail_data_column_style()
 
+        self.last_update = datetime.now()
+        self.run_loop()
+
+    def run_loop(self):
         while True:
-            event, values = _window.read(timeout=125)
+            event, values = self.window.read(timeout=125)
             if event == sg.WIN_CLOSED:
                 break
-            _window.refresh()
+
+            if self.last_update < self.lobby.lobby.last_update:
+                self.update_player_cards()
+
+            self.window.refresh()
+
+    def update_player_cards(self):
+        self.hide_all_graphs()
+        _players_red = [x for x in self.lobby.lobby.players if x.game_team == Team.Red]
+        _players_blu = [x for x in self.lobby.lobby.players if x.game_team == Team.Blue]
+        _updated_highest_blu = 0
+        _updated_highest_red = 0
+
+        for idx, _pl in enumerate(_players_blu):
+            self.graphs_blue_ids[idx] = self.build_player_tile(self.graphs_blue[idx], _pl)
+            _updated_highest_blu = idx
+
+        for idx, _pl in enumerate(_players_red):
+            self.graphs_red_ids[idx] = self.build_player_tile(self.graphs_red[idx], _pl)
+            _updated_highest_red = idx
 
     @staticmethod
     def _resize_image(image_path: str) -> str:
@@ -137,17 +168,19 @@ class G15Viewer:
         return graphs
 
     def make_player_columns(self) -> tuple[sg.Column, sg.Column]:
-        graphs_red = self.make_graphs('red')
-        graphs_blue = self.make_graphs('blu')
+        self.graphs_red = self.make_graphs('red')
+        self.graphs_blue = self.make_graphs('blu')
+        self.graphs_red_ids = [{}]*16
+        self.graphs_blue_ids = [{}]*16
         _column_red = sg.Column(
-            layout=[[x] for x in graphs_red],
+            layout=[[x] for x in self.graphs_red],
             scrollable=True,
             vertical_scroll_only=True,
             size=(430, 800),
             key="redTeamPlayerTilesColumn"
         )
         _column_blu = sg.Column(
-            layout=[[x] for x in graphs_blue],
+            layout=[[x] for x in self.graphs_blue],
             scrollable=True,
             vertical_scroll_only=True,
             size=(430, 800),
@@ -155,11 +188,45 @@ class G15Viewer:
         )
         return _column_blu, _column_red
 
+    def make_player_lists(self) -> sg.Column:
+        _column_blu, _column_red = self.make_player_columns()
+        _expand_blue = sg.Column(
+            layout=[
+                [sg.Image(filename=str(self.BLU_TEAM_PLAYER_HEADER_IMG))],
+                [_column_blu]
+            ]
+        )
+        _expand_red = sg.Column(
+            layout=[
+                [sg.Image(filename=str(self.RED_TEAM_PLAYER_HEADER_IMG))],
+                [_column_red]
+            ]
+        )
+        return sg.Column(
+            layout=[[_expand_blue, _expand_red]]
+        )
+
+    def hide_all_graphs(self) -> None:
+        for idx, _g in enumerate(self.graphs_blue):
+            _g.update(visible=False)
+            if self.graphs_blue_ids[idx] != {}:
+                for _k in self.graphs_blue_ids[idx]:
+                    _g.delete_figure(self.graphs_blue_ids[idx][_k])
+                self.graphs_blue_ids[idx] = {}
+
+        for idx, _g in enumerate(self.graphs_red):
+            _g.update(visible=False)
+            if self.graphs_red_ids[idx] != {}:
+                for _k in self.graphs_red_ids[idx]:
+                    _g.delete_figure(self.graphs_red_ids[idx][_k])
+                self.graphs_red_ids[idx] = {}
+
     def build_player_tile(self, graph: sg.Graph, player: TF2Player) -> dict:
         MAX_NAME_LEN = 24
         PLAYER_TILE_WIDTH = 420
         PLAYER_TILE_HEIGHT = 140
 
+        graph.update(visible=True)
         _name = player.personaname
 
         _fn = None
@@ -205,12 +272,58 @@ class G15Viewer:
         }
         return self.player_tile_ids[player.steamID64]
 
-    def left_wing(self) -> None:
-        sg.Column(
+    def left_wing(self) -> sg.Column:
+        return sg.Column(
             layout=[
-                [sg.Image(filename=str(self.ABOUT_HEADER_IMG), key=self.ABOUT_HEADER_KEY)]
+                [sg.Image(filename=str(self.ABOUT_HEADER_IMG), key=self.ABOUT_HEADER_KEY)],
+                [sg.Image(filename=str(self.DETAILS_HEADER_IMG), key=self.DETAILS_HEADER_KEY)],
+                [sg.Column(layout=[[self.create_detail_labels_column(), self.create_detail_data_column()]])],
             ]
         )
+
+    def create_detail_data_column(self) -> sg.Column:
+        _col = sg.Column(
+            layout=[
+                [sg.InputText("", key=self.DETAILS_NAME_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_SID_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_SID64_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_PURL_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_CREATED_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_LOC_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_VAC_KEY, use_readonly_for_disable=True, disabled=True)],
+            ]
+        )
+        return _col
+
+    @staticmethod
+    def create_detail_labels_column() -> sg.Column:
+        return sg.Column(
+            layout=[[sg.Text("Name:")], [sg.Text("SteamID3:")], [sg.Text("SteamID64:")], [sg.Text("Profile:")],
+                    [sg.Text("Location:")], [sg.Text("Created:")], [sg.Text("VAC:")]],
+            element_justification='right'
+        )
+
+    def build_layout(self) -> sg.Frame:
+        return sg.Frame(
+            title="",
+            layout=[
+                [self.left_wing(), self.make_player_lists()]
+            ]
+        )
+
+    def set_detail_data_column_style(self) -> None:
+        _key_names = [
+            self.DETAILS_NAME_KEY,
+            self.DETAILS_SID_KEY,
+            self.DETAILS_SID64_KEY,
+            self.DETAILS_PURL_KEY,
+            self.DETAILS_CREATED_KEY,
+            self.DETAILS_LOC_KEY,
+            self.DETAILS_VAC_KEY,
+        ]
+        for _k in _key_names:
+            self.window[_k].Widget.config(readonlybackground=sg.theme_background_color())
+            self.window[_k].Widget.config(borderwidth=0)
 
 
 def create_header_button_row() -> sg.Frame:
