@@ -137,7 +137,7 @@ class MACAPI:
         """
         The events endpoint will be a HTTP Event Stream (continual socket) from the backend, so you probably
         want to multithread this or asynchio it.
-        
+
         :param api_version: a function-local override for the api endpoint version.
         :return: the first event payload to return
         """

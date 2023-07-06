@@ -31,11 +31,13 @@ Cleaning up and preparing for 3rd refactor of the UI code for the g15 viewer (si
 `g15_dumpplayer` data). Looking into grabbing `PySimpleGui_Events` to handle app events better. Need to start implementing
 classes in the GUI packages to encapsulate data better.
 
-G15 Lobby Viewer Example:
+(NEW!) G15 Comic Lobby Viewer Example:
+![Functioning comical g15 lobby viewer in a random 2fort lobby](docs/pictures/g15_viewer_comic.png)
+
+(TEST) G15 Lobby Viewer Example:
 ![Functioning G15 lobby viewer from a random tf2 lobby i was in](docs/pictures/g15viewer.png)
 
-
-(OLD) Simple Lobby Viewer Example:
+(OLD (OLD)) Simple Lobby Viewer Example:
 ![Functioning simple lobby viewer from a random TF2 lobby I was in](docs/pictures/gui.lobbyviewer.png)
 
 **NOTE:**  
