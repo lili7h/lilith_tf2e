@@ -1,0 +1,106 @@
+{
+  "players": [
+    {
+      "isSelf": false,
+      "name": "Bash09",
+      "steamID64": "76561199158140528",
+      "steamInfo": {
+        "accountName": "Bash09",
+        "pfp": "https://avatars.steamstatic.com/example",
+        "pfphash": "a1c683f63cbe3d5e8603b63de64c85d36fe107df",
+        "vacBans": "None",
+        "isFriend": true
+      },
+      "gameInfo": {
+        "team": 3,
+        "ping": 43,
+        "kills": 16,
+        "deaths": 3,
+        "time": "29:43"
+      },
+      "customData": {
+        "tag": "friend"
+      },
+      "tags": ["MAC Admin"]
+    },
+    {
+      "isSelf": true,
+      "name": "Lilith",
+      "steamID64": "76561198168798338",
+      "steamInfo": {
+        "accountName": "Lilith",
+        "pfp": "https://avatars.steamstatic.com/example",
+        "pfphash": "e123051ffc4f07e73737d58c17e3bee71366fc34",
+        "vacBans": "1 VAC ban on record",
+        "isFriend": true
+      },
+      "gameInfo": {
+        "team": 2,
+        "ping": 16,
+        "kills": 5,
+        "deaths": 17,
+        "time": "1:04:17"
+      },
+      "customData": {
+        "tag": "trusted"
+      },
+      "tags": ["MAC Admin"]
+    },
+    {
+      "isSelf": false,
+      "name": "Numerose",
+      "steamID64": "76561198943329956",
+      "steamInfo": {
+        "accountName": "Numerose",
+        "pfp": "https://avatars.steamstatic.com/example",
+        "pfphash": "216f2ce67bd4b5d84a63e4649fd2f84ad428fcfe",
+        "vacBans": "None",
+        "isFriend": true
+      },
+      "gameInfo": {
+        "team": 3,
+        "ping": 55,
+        "kills": 23,
+        "deaths": 51,
+        "time": "35:12"
+      },
+      "customData": {
+        "tag": "sus"
+      },
+      "tags": []
+    },
+    {
+      "isSelf": false,
+      "name": "Zephyr",
+      "steamID64": "76561198137175279",
+      "steamInfo": {
+        "accountName": "Zephyr",
+        "pfp": "https://avatars.steamstatic.com/example",
+        "pfphash": "53b56293713c041a29e8c14b2480c020873c33c0",
+        "vacBans": "All of them",
+        "isFriend": false
+      },
+      "gameInfo": {
+        "team": 2,
+        "ping": 271,
+        "kills": 87,
+        "deaths": 12,
+        "time": "12:54"
+      },
+      "customData": {
+        "tag": "cheater"
+      },
+      "tags": []
+    }
+  ],
+  "map": "ctf_2fort",
+  "ip": "127.0.0.1",
+  "hostname": "Lilith",
+  "maxPlayers": 32,
+  "numPlayers": 17,
+  "gamemode": {
+    "matchmaking": false,
+    "type": "Capture the flag",
+    "vanilla": true
+  }
+}

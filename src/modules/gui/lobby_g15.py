@@ -1,21 +1,59 @@
+import json
+import pathlib
+import time
+
+import jsonschema
+
 from src.modules.tf2e.lobby import TF2Player, DummyTF2Player
 from src.modules.gui import G15_LOBBY_VIEWER_VER_STR
 from src.modules.tf2e.main import TF2eLoader
 from src.modules.g15parser.consumer import Team
 from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
+from src.modules.gui.api import MACAPI, get_player_data, get_game_data, get_app_preferences, update_player_data, \
+    update_app_preferences, is_event_registered, register_event_handler
 from src.modules.caching.avatar_cache import AvCache
 from src.modules.tf2e import lobby
 
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 from PIL import Image
+from loguru import logger
+from jsonschema import validate
 
 import tkinter as tk
 import PySimpleGUI as sg
 
 sg.theme("DarkPurple7")
 TF2_LOGO_B64 = ""
+
+API_BASE = "http://127.0.0.1"
+API_PORT = 3000
+
+"""
+Player Dict
+{
+  "isSelf": True/False
+  "name": "xyz",
+  "steamID64": "foobar",
+  "steamInfo": {
+    "accountName": "abc",
+    "pfp": "https://avatars.steamstatic.com/",
+    "vacBans": "xyz",
+    "isFriend": True/False,
+    ...
+  },
+  "gameInfo": {
+    "team": 3,
+    "ping": 64,
+    "kills": 0,
+    "deaths": 0,
+    // others...
+  },
+  "customData": { ... },
+  "tags": ["...", "..."]
+}
+"""
 
 
 class G15Viewer:
@@ -90,6 +128,8 @@ class G15Viewer:
     lobby = None
     last_update: datetime = None
 
+    validation_schemas: dict[str, dict] = None
+
     def __init__(self, data_path: Path) -> None:
         self.RED_TEAM_PLAYER_TILEBG_IMG = data_path.joinpath("images/icons/player_tile_red.png")
         self.BLU_TEAM_PLAYER_TILEBG_IMG = data_path.joinpath("images/icons/player_tile_blue.png")
@@ -109,17 +149,23 @@ class G15Viewer:
 
         self.player_mappings = {}
         self.player_tile_ids = {}
-        self.loader = TF2eLoader(data_path)
-        self.lobby = lobby.LobbyWatching(self.loader.rcon_client, self.loader.steam_client)
-        self.lobby.lobby.connect_listener(self.loader.log_listener)
-        self.av_cache = self.loader.av_cache
-        # self.av_cache = AvCache(data_path.joinpath("cache/avadatars/"))
+        # self.loader = TF2eLoader(data_path)
+        # self.lobby = lobby.LobbyWatching(self.loader.rcon_client, self.loader.steam_client)
+        # self.lobby.lobby.connect_listener(self.loader.log_listener)
+        # self.av_cache = self.loader.av_cache
+        self.av_cache = AvCache(data_path.joinpath("cache/avatars/"))
+        self.api = MACAPI(f"{API_BASE}:{API_PORT}")
+
+        _json_schemas = pathlib.Path(data_path.joinpath("schemas/")).glob("*.json")
+        for _sc in _json_schemas:
+            _name = _sc.name.split("validate_")[1].replace(".json", "")
+            with open(str(_sc), 'r') as h:
+                self.validation_schemas[_name] = json.loads(h.read())
 
         _frame = self.build_layout()
         self.window = sg.Window("Testing", layout=[[_frame]], resizable=True, finalize=True)
         self.set_detail_data_column_style()
 
-        self.last_update = datetime.now()
         self.run_loop()
 
     def run_loop(self):
@@ -128,15 +174,29 @@ class G15Viewer:
             if event == sg.WIN_CLOSED:
                 break
 
-            if self.last_update < self.lobby.lobby.last_update:
+            if self.last_update is None or (datetime.now() - self.last_update).seconds > 5:
+                logger.info("Updating player cards")
                 self.update_player_cards()
+                self.last_update = datetime.now()
 
             self.window.refresh()
 
     def update_player_cards(self):
         self.hide_all_graphs()
-        _players_red = [x for x in self.lobby.lobby.players if x.game_team == Team.Red]
-        _players_blu = [x for x in self.lobby.lobby.players if x.game_team == Team.Blue]
+        _game = get_game_data(self.api)
+
+        if "server" in _game:
+            _game = _game["server"]
+
+        _players = _game["players"]
+        # logger.info(f"num players: {len(_players)}")
+
+        _players_red = [x for x in _players if x["gameInfo"]["team"] == Team.Red.value]
+        _players_blu = [x for x in _players if x["gameInfo"]["team"] == Team.Blue.value]
+
+        # logger.info(f"num red players: {len(_players_red)}")
+        # logger.info(f"num blue players: {len(_players_blu)}")
+
         _updated_highest_blu = 0
         _updated_highest_red = 0
 
@@ -170,8 +230,8 @@ class G15Viewer:
     def make_player_columns(self) -> tuple[sg.Column, sg.Column]:
         self.graphs_red = self.make_graphs('red')
         self.graphs_blue = self.make_graphs('blu')
-        self.graphs_red_ids = [{}]*16
-        self.graphs_blue_ids = [{}]*16
+        self.graphs_red_ids = [{}] * 16
+        self.graphs_blue_ids = [{}] * 16
         _column_red = sg.Column(
             layout=[[x] for x in self.graphs_red],
             scrollable=True,
@@ -221,16 +281,23 @@ class G15Viewer:
                     _g.delete_figure(self.graphs_red_ids[idx][_k])
                 self.graphs_red_ids[idx] = {}
 
-    def build_player_tile(self, graph: sg.Graph, player: TF2Player) -> dict:
-        MAX_NAME_LEN = 24
+    def build_player_tile(self, graph: sg.Graph, player: dict) -> dict:
+        MAX_NAME_LEN = 20
         PLAYER_TILE_WIDTH = 420
         PLAYER_TILE_HEIGHT = 140
+        # TODO: write a JSON validation schema to validate the payload.
+
+        try:
+            validate(player, schema=self.validation_schemas['player'])
+        except jsonschema.ValidationError as e:
+            logger.warning(f"Player object failed to validate! Ignoring...")
+            return {}
 
         graph.update(visible=True)
-        _name = player.personaname
+        _name = player["name"]
 
         _fn = None
-        if player.game_team == Team.Blue:
+        if player["gameInfo"]["team"] == Team.Blue.value:
             _fn = self.BLU_TEAM_PLAYER_TILEBG_IMG
         else:
             _fn = self.RED_TEAM_PLAYER_TILEBG_IMG
@@ -239,11 +306,17 @@ class G15Viewer:
             filename=str(_fn),
             location=(0, PLAYER_TILE_HEIGHT),
         )
+
+        _association_str = player["customData"]["tag"] if "tag" in player["customData"] else "unknown"
+
         _association_icon_id = graph.draw_image(
-            filename=str(self.UNKNOWN_PLAYER_ICON_IMG).replace("unknown", player.association.icon_str),
+            filename=str(self.UNKNOWN_PLAYER_ICON_IMG).replace("unknown", _association_str),  #
             location=(PLAYER_TILE_WIDTH / 1.53, PLAYER_TILE_HEIGHT / 2)
         )
-        img_path = self._resize_image(str(self.av_cache.get_image(player.avatarhash)))
+
+        _av_hash = player["steamInfo"]["pfphash"] if player["steamInfo"] is not None else "tf2small"
+
+        img_path = self._resize_image(str(self.av_cache.get_image(_av_hash)))
         _pfp_icon_id = graph.draw_image(
             filename=img_path,
             location=(PLAYER_TILE_WIDTH / 6.6, PLAYER_TILE_HEIGHT / 2)
@@ -255,13 +328,13 @@ class G15Viewer:
         _name_id = graph.draw_text(text=_name,
                                    location=(PLAYER_TILE_WIDTH / 1.83, PLAYER_TILE_HEIGHT / 1.3),
                                    color='white', font='CIKANDEI 32')
-        _ping_id = graph.draw_text(text=f"{player.ping}ms",
+        _ping_id = graph.draw_text(text=f"{player['gameInfo']['ping']}ms",
                                    location=(PLAYER_TILE_WIDTH / 1.91, PLAYER_TILE_HEIGHT / 2.8),
                                    color='white', font='CIKANDEI 24')
-        _time_id = graph.draw_text(text=player.game_time,
+        _time_id = graph.draw_text(text=str(timedelta(seconds=player['gameInfo']['time'])),
                                    location=(PLAYER_TILE_WIDTH / 2, PLAYER_TILE_HEIGHT / 7),
                                    color='white', font='CIKANDEI 24')
-        self.player_tile_ids[player.steamID64] = {
+        self.player_tile_ids[player["steamID64"]] = {
             "name": _name_id,
             "ping": _ping_id,
             "time": _time_id,
@@ -270,7 +343,7 @@ class G15Viewer:
             "bg": _img_id,
             "player": player,
         }
-        return self.player_tile_ids[player.steamID64]
+        return self.player_tile_ids[player["steamID64"]]
 
     def left_wing(self) -> sg.Column:
         return sg.Column(
