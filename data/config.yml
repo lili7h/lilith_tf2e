@@ -2,3 +2,6 @@ tf2:
   dir: "D:\\Steam\\steamapps\\common\\Team Fortress 2"
   rcon:
     password: "lilith_is_hot"
+steam:
+  name: "Lilith"
+  steamid64: 76561198071482715

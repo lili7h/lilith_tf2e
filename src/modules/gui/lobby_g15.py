@@ -20,6 +20,8 @@ from typing import Literal
 from PIL import Image
 from loguru import logger
 from jsonschema import validate
+from yaml import safe_load
+from steamid_converter import Converter
 
 import tkinter as tk
 import PySimpleGUI as sg
@@ -28,7 +30,7 @@ sg.theme("DarkPurple7")
 TF2_LOGO_B64 = ""
 
 API_BASE = "http://127.0.0.1"
-API_PORT = 3000
+API_PORT = 5000
 
 """
 Player Dict
@@ -54,6 +56,12 @@ Player Dict
   "tags": ["...", "..."]
 }
 """
+
+
+def load_steam_conf(data_path: Path) -> dict:
+    with open(str(data_path.joinpath("config.yml")), 'r') as h:
+        _data = safe_load(h)
+    return _data["steam"]
 
 
 class G15Viewer:
@@ -100,6 +108,7 @@ class G15Viewer:
     TRUSTED_PLAYER_ICON_IMG: Path = None  # 64x64
     FRIEND_PLAYER_ICON_IMG: Path = None  # 64x64
 
+    LOBBY_DETAILS_IMG: Path = None
     ABOUT_HEADER_KEY: str = "aboutHeader"
     ABOUT_HEADER_IMG: Path = None
 
@@ -114,14 +123,17 @@ class G15Viewer:
     DETAILS_CREATED_KEY: str = 'createdSelectedPlayer'
     DETAILS_VAC_KEY: str = 'vacSelectedPlayer'
 
+    graph_lobby: sg.Graph = None
     graphs_red: list[sg.Graph] = None
     graphs_red_ids: list[dict] = None
     graphs_blue: list[sg.Graph] = None
     graphs_blue_ids: list[dict] = None
 
-    player_mappings: dict[int, TF2Player] = None
+    player_mappings: dict[str, dict] = None
     player_tile_ids: dict[str, dict[str, int | TF2Player]] = None
+    graph_tile_ids: list = None
     av_cache: AvCache = None
+    steam_data: dict = None
 
     window: sg.Window = None
     loader: TF2eLoader = None
@@ -145,17 +157,20 @@ class G15Viewer:
         self.FRIEND_PLAYER_ICON_IMG = data_path.joinpath("images/icons/friend_icon.png")
 
         self.ABOUT_HEADER_IMG = data_path.joinpath("images/icons/about_v050a.png")
+        self.LOBBY_DETAILS_IMG = data_path.joinpath("images/icons/lobby_details.png")
         self.DETAILS_HEADER_IMG = data_path.joinpath("images/icons/details_header.png")
 
         self.player_mappings = {}
+        self.graph_tile_ids = []
         self.player_tile_ids = {}
-        # self.loader = TF2eLoader(data_path)
-        # self.lobby = lobby.LobbyWatching(self.loader.rcon_client, self.loader.steam_client)
-        # self.lobby.lobby.connect_listener(self.loader.log_listener)
-        # self.av_cache = self.loader.av_cache
+        self.steam_data = load_steam_conf(data_path)
+
+        self.data_path = data_path
         self.av_cache = AvCache(data_path.joinpath("cache/avatars/"))
+        self.av_cache.check_tf2_small_in_cache(data_path)
         self.api = MACAPI(f"{API_BASE}:{API_PORT}")
 
+        self.validation_schemas = {}
         _json_schemas = pathlib.Path(data_path.joinpath("schemas/")).glob("*.json")
         for _sc in _json_schemas:
             _name = _sc.name.split("validate_")[1].replace(".json", "")
@@ -173,6 +188,10 @@ class G15Viewer:
             event, values = self.window.read(timeout=125)
             if event == sg.WIN_CLOSED:
                 break
+            elif event != sg.TIMEOUT_EVENT:
+                if str(event).startswith("testGraph") and str(event).endswith("+UP"):
+                    _pl = self.player_mappings[str(event).replace("+UP", "")]
+                    self.update_player_details(_pl)
 
             if self.last_update is None or (datetime.now() - self.last_update).seconds > 5:
                 logger.info("Updating player cards")
@@ -185,8 +204,8 @@ class G15Viewer:
         self.hide_all_graphs()
         _game = get_game_data(self.api)
 
-        if "server" in _game:
-            _game = _game["server"]
+        # if "server" in _game:
+        #     _game = _game["server"]
 
         _players = _game["players"]
         # logger.info(f"num players: {len(_players)}")
@@ -200,13 +219,23 @@ class G15Viewer:
         _updated_highest_blu = 0
         _updated_highest_red = 0
 
-        for idx, _pl in enumerate(_players_blu):
-            self.graphs_blue_ids[idx] = self.build_player_tile(self.graphs_blue[idx], _pl)
-            _updated_highest_blu = idx
+        try:
+            for idx, _pl in enumerate(_players_blu):
+                self.graphs_blue_ids[idx] = self.build_player_tile(self.graphs_blue[idx], _pl)
+                _updated_highest_blu = idx
+        except IndexError:
+            logger.warning("Attempting to graph more players than there are graphs. "
+                           "Support only extends to <=32 player severs.")
 
-        for idx, _pl in enumerate(_players_red):
-            self.graphs_red_ids[idx] = self.build_player_tile(self.graphs_red[idx], _pl)
-            _updated_highest_red = idx
+        try:
+            for idx, _pl in enumerate(_players_red):
+                self.graphs_red_ids[idx] = self.build_player_tile(self.graphs_red[idx], _pl)
+                _updated_highest_red = idx
+        except IndexError:
+            logger.warning("Attempting to graph more players than there are graphs. "
+                           "Support only extends to <=32 player severs.")
+
+        self.update_server_details(_game, (_updated_highest_blu + 1, _updated_highest_red + 1))
 
     @staticmethod
     def _resize_image(image_path: str) -> str:
@@ -215,6 +244,14 @@ class G15Viewer:
         _new_path = image_path.replace(".png", "_64.png")
         resized.save(_new_path)
         return _new_path
+
+    @staticmethod
+    def make_server_details_graph() -> sg.Graph:
+        graph = sg.Graph(
+            canvas_size=(840, 200), graph_bottom_left=(0, 0), graph_top_right=(840, 200), enable_events=True,
+            drag_submits=True, key=f"lobbyServerDetailsGraph"
+        )
+        return graph
 
     @staticmethod
     def make_graphs(team: Literal['red', 'blu']) -> list[sg.Graph]:
@@ -234,36 +271,131 @@ class G15Viewer:
         self.graphs_blue_ids = [{}] * 16
         _column_red = sg.Column(
             layout=[[x] for x in self.graphs_red],
-            scrollable=True,
-            vertical_scroll_only=True,
-            size=(430, 800),
+            # scrollable=True,
+            # vertical_scroll_only=True,
+            # size=(430, 800),
             key="redTeamPlayerTilesColumn"
         )
         _column_blu = sg.Column(
             layout=[[x] for x in self.graphs_blue],
-            scrollable=True,
-            vertical_scroll_only=True,
-            size=(430, 800),
+            # scrollable=True,
+            # vertical_scroll_only=True,
+            # size=(430, 800),
             key="bluTeamPlayerTilesColumn"
         )
         return _column_blu, _column_red
 
+    def update_player_details(self, player: dict) -> None:
+        _name: sg.InputText = self.window[self.DETAILS_NAME_KEY]
+        _sid: sg.InputText = self.window[self.DETAILS_SID_KEY]
+        _sid64: sg.InputText = self.window[self.DETAILS_SID64_KEY]
+        _purl: sg.InputText = self.window[self.DETAILS_PURL_KEY]
+        _created: sg.InputText = self.window[self.DETAILS_CREATED_KEY]
+        _loc: sg.InputText = self.window[self.DETAILS_LOC_KEY]
+        _vac: sg.InputText = self.window[self.DETAILS_VAC_KEY]
+
+        _name.update(value=player["name"])
+        _sid.update(value=Converter.to_steamID3(player["steamID64"]))
+        _sid64.update(value=player["steamID64"])
+        _purl.update(value=f"https://steamcommunity.com/profiles/{player['steamID64']}/")
+        _created.update(value=str(datetime.fromtimestamp(player['steamInfo']['timecreated'])))
+        _loc.update(value=player['steamInfo']['loccountrycode'])
+        _vac.update(value=" --not implemented-- ")
+
+    def update_server_details(self, game_obj: dict, num_players_by_team: tuple[int, int]) -> None:
+        SERVER_DETAILS_TILE_HEIGHT = 200
+        SERVER_DETAILS_TILE_WIDTH = 840
+
+        for id_ in self.graph_tile_ids:
+            self.graph_lobby.delete_figure(id_)
+
+        _map = game_obj["map"]
+        _ip = game_obj["ip"]
+        _hostname = game_obj["hostname"]
+        _players = f'{game_obj["numPlayers"]} / {game_obj["maxPlayers"]}'
+        _gamemode = game_obj["gamemode"]["type"] \
+                    + (" (matchmade)" if game_obj["gamemode"]["matchmaking"] else "") \
+                    + (" (vanilla)" if game_obj["gamemode"]["vanilla"] else "")
+
+        self.graph_tile_ids = []
+
+        self.graph_tile_ids.append(self.graph_lobby.draw_image(filename=str(self.LOBBY_DETAILS_IMG),
+                                                               location=(0, SERVER_DETAILS_TILE_HEIGHT)))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=_map,
+                                       location=(SERVER_DETAILS_TILE_WIDTH / 2, SERVER_DETAILS_TILE_HEIGHT / 2),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=_ip,
+                                       location=(SERVER_DETAILS_TILE_WIDTH / 2, SERVER_DETAILS_TILE_HEIGHT / 1.62),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=_hostname,
+                                       location=(SERVER_DETAILS_TILE_WIDTH / 2, SERVER_DETAILS_TILE_HEIGHT / 1.36),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=_gamemode,
+                                       location=(SERVER_DETAILS_TILE_WIDTH / 2, SERVER_DETAILS_TILE_HEIGHT / 2.62),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=_players,
+                                       location=(SERVER_DETAILS_TILE_WIDTH / 2, SERVER_DETAILS_TILE_HEIGHT * 0.26),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=str(num_players_by_team[0]),
+                                       location=(SERVER_DETAILS_TILE_WIDTH * 0.16, SERVER_DETAILS_TILE_HEIGHT * 0.1),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=str(num_players_by_team[1]),
+                                       location=(SERVER_DETAILS_TILE_WIDTH * 0.95, SERVER_DETAILS_TILE_HEIGHT * 0.1),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=f'Name: {self.steam_data["name"]}',
+                                       location=(SERVER_DETAILS_TILE_WIDTH * 0.02, SERVER_DETAILS_TILE_HEIGHT * 0.78),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+        self.graph_tile_ids.append(
+            self.graph_lobby.draw_text(text=f"ID: {self.steam_data['steamid64']}",
+                                       location=(SERVER_DETAILS_TILE_WIDTH * 0.055, SERVER_DETAILS_TILE_HEIGHT * 0.66),
+                                       color='white', font='CIKANDEI 18', text_location=sg.TEXT_LOCATION_LEFT))
+
     def make_player_lists(self) -> sg.Column:
+        self.graph_lobby = self.make_server_details_graph()
         _column_blu, _column_red = self.make_player_columns()
-        _expand_blue = sg.Column(
+        _combined_columns = sg.Column(
             layout=[
-                [sg.Image(filename=str(self.BLU_TEAM_PLAYER_HEADER_IMG))],
-                [_column_blu]
-            ]
+                [
+                    sg.Stretch(), self.graph_lobby, sg.Stretch()
+                ],
+                [
+                    sg.Image(filename=str(self.BLU_TEAM_PLAYER_HEADER_IMG)),
+                    sg.Stretch(),
+                    sg.Image(filename=str(self.RED_TEAM_PLAYER_HEADER_IMG))
+                ],
+                [
+                    sg.Column(
+                        layout=[[_column_blu, _column_red]]
+                    )
+                ]
+            ],
+            size=(900, 800),
+            scrollable=True,
+            vertical_scroll_only=True,
         )
-        _expand_red = sg.Column(
-            layout=[
-                [sg.Image(filename=str(self.RED_TEAM_PLAYER_HEADER_IMG))],
-                [_column_red]
-            ]
-        )
+
+        # _expand_blue = sg.Column(
+        #     layout=[
+        #         [sg.Image(filename=str(self.BLU_TEAM_PLAYER_HEADER_IMG))],
+        #         [_column_blu]
+        #     ]
+        # )
+        # _expand_red = sg.Column(
+        #     layout=[
+        #         [sg.Image(filename=str(self.RED_TEAM_PLAYER_HEADER_IMG))],
+        #         [_column_red]
+        #     ]
+        # )
         return sg.Column(
-            layout=[[_expand_blue, _expand_red]]
+            layout=[[_combined_columns]]
         )
 
     def hide_all_graphs(self) -> None:
@@ -285,11 +417,11 @@ class G15Viewer:
         MAX_NAME_LEN = 20
         PLAYER_TILE_WIDTH = 420
         PLAYER_TILE_HEIGHT = 140
-        # TODO: write a JSON validation schema to validate the payload.
 
         try:
             validate(player, schema=self.validation_schemas['player'])
         except jsonschema.ValidationError as e:
+            logger.warning(f"JSON Validation failure at: {e.message}")
             logger.warning(f"Player object failed to validate! Ignoring...")
             return {}
 
@@ -307,6 +439,7 @@ class G15Viewer:
             location=(0, PLAYER_TILE_HEIGHT),
         )
 
+        # Custom tagging for sexy icons
         _association_str = player["customData"]["tag"] if "tag" in player["customData"] else "unknown"
 
         _association_icon_id = graph.draw_image(
@@ -343,6 +476,7 @@ class G15Viewer:
             "bg": _img_id,
             "player": player,
         }
+        self.player_mappings[graph.key] = player
         return self.player_tile_ids[player["steamID64"]]
 
     def left_wing(self) -> sg.Column:
@@ -361,8 +495,8 @@ class G15Viewer:
                 [sg.InputText("", key=self.DETAILS_SID_KEY, use_readonly_for_disable=True, disabled=True)],
                 [sg.InputText("", key=self.DETAILS_SID64_KEY, use_readonly_for_disable=True, disabled=True)],
                 [sg.InputText("", key=self.DETAILS_PURL_KEY, use_readonly_for_disable=True, disabled=True)],
-                [sg.InputText("", key=self.DETAILS_CREATED_KEY, use_readonly_for_disable=True, disabled=True)],
                 [sg.InputText("", key=self.DETAILS_LOC_KEY, use_readonly_for_disable=True, disabled=True)],
+                [sg.InputText("", key=self.DETAILS_CREATED_KEY, use_readonly_for_disable=True, disabled=True)],
                 [sg.InputText("", key=self.DETAILS_VAC_KEY, use_readonly_for_disable=True, disabled=True)],
             ]
         )

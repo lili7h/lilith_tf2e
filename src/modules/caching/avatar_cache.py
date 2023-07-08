@@ -1,5 +1,6 @@
 import datetime
 import os
+import pathlib
 from pathlib import Path
 from PIL import Image
 from io import BytesIO
@@ -8,6 +9,7 @@ from threading import Lock
 import base64
 import requests
 import loguru
+import shutil
 
 
 class CacheSingletonManager(type):
@@ -83,6 +85,20 @@ class AvCache(metaclass=CacheSingletonManager):
             return _img_path
         except KeyError:
             return None
+
+    def check_tf2_small_in_cache(self, data_path: Path) -> None:
+        try:
+            _img_path = self.indexes["tf2small"]
+            return
+        except KeyError:
+            pass
+
+        if os.path.exists(f'{self.cache_path}/tf2small.png'):
+            self.indexes["tf2small"] = Path(f'{self.cache_path}/tf2small.png')
+            return
+        else:
+            shutil.copy(data_path.joinpath("images/tf2small.png"), self.cache_path)
+            self.indexes["tf2small"] = Path(f'{self.cache_path}/tf2small.png')
 
 
 def main():
