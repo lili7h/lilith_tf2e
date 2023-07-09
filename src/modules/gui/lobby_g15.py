@@ -419,7 +419,7 @@ class G15Viewer:
         PLAYER_TILE_HEIGHT = 140
 
         try:
-            validate(player, schema=self.validation_schemas['player'])
+            validate(player, schema=self.validation_schemas['playerResponse'])
         except jsonschema.ValidationError as e:
             logger.warning(f"JSON Validation failure at: {e.message}")
             logger.warning(f"Player object failed to validate! Ignoring...")
