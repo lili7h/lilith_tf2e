@@ -1,5 +1,4 @@
-from src.modules.g15parser.consumer import G15DumpPlayer, Team
-from loguru import logger
+from src.modules.backend.g15parser.consumer import G15DumpPlayer, Team
 
 
 class PlayerDump:

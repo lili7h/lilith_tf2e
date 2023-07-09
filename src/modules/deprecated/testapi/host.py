@@ -17,7 +17,7 @@ def dummy_events():
 
 @app.route("/mac/game/v1", methods=['GET'])
 def dummy_game():
-    with open('F:\\projects\\py\\lilith_tf2e\\src\\modules\\testapi\\test_jsons\\game.json', 'r') as h:
+    with open('/src/modules/deprecated/testapi/test_jsons/game.json', 'r') as h:
         _json = h.read()
     return _json
 

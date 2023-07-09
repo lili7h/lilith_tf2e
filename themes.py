@@ -1,5 +1,4 @@
 import PySimpleGUI as psg
-from src.modules.tf2e.lobby import TF2Player
 
 psg.theme_previewer()
 # names = ["help", "this", "sux"]

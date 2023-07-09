@@ -2,11 +2,11 @@
 import sys
 import time
 
-import src.modules.rc.rcon_client as rcc
-import src.modules.listener.path_listener as l2  # l2 is the legacy name for this listener class
-import src.modules.helpers.conf as conf
+import src.modules.backend.rc.rcon_client as rcc
+import src.modules.deprecated.listener.path_listener as l2  # l2 is the legacy name for this listener class
+import src.modules.deprecated.helpers.conf as conf
 import src.modules.caching.avatar_cache as avcache
-import src.modules.tf2e.lobby as lobby
+import src.modules.backend.lobby as lobby
 
 # PyPl/Pip/Poetry/System packages
 from dotenv import load_dotenv
@@ -75,7 +75,7 @@ class TF2eLoader:
 
 
 def main():
-    _data_path = Path("../../../data/")
+    _data_path = Path("../../../../data/")
     client_loader = TF2eLoader(_data_path)
     game_lobby = lobby.LobbyWatching(client_loader.rcon_client, client_loader.steam_client)
     term_width = 240  # os.get_terminal_size().columns

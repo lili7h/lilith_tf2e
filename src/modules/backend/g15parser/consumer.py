@@ -1,12 +1,12 @@
-from abc import ABC, abstractmethod
 from enum import Enum
 from datetime import datetime
-from typing import Union, Literal
+from typing import Union
 from pathlib import Path
+from src.modules.backend.rc.rcon_client import RCONListener
 
 import loguru
 
-from src.modules.rc.FragClient import FragClient
+from src.modules.backend.rc.FragClient import FragClient
 import numpy as np
 import struct
 import re
@@ -645,19 +645,21 @@ class G15DumpPlayer:
         return self._LocalPlayerWeapon
 
 
-def do_g15(rcon_conf: tuple[str, int, str]) -> G15DumpPlayer:
+def do_g15(rcon_client: RCONListener) -> G15DumpPlayer:
     """
     Given the rcon configuration params, invoke a custom FragClient instance to invoke the 'g15_dumpplayer' command
     and sequentially read and concatenate the response (fragmented) packets. Then this response is passed to
     G15DumpPlayer and a parsed G15DumpPlayer instance is returned.
 
-    :param rcon_conf: a tuple containing the: rcon_ip, rcon_port, rcon_password
+    :param rcon_client: an initialised rcon client (used for its store on the rcon data)
     :return: The constructed G15DumpPlayer instance.
     """
-    with FragClient(rcon_conf[0], rcon_conf[1], passwd=rcon_conf[2]) as h:
+
+    with FragClient(rcon_client.rcon_ip, rcon_client.rcon_port, passwd=rcon_client.rcon_pword) as h:
         resp = h.frag_run("g15_dumpplayer")
     _inst = G15DumpPlayer(resp)
     return _inst
+
 
 def main():
     # rcon_ip = "127.0.0.1"
@@ -665,7 +667,7 @@ def main():
     # rcon_pword = "lilith_is_hot"
     # with FragClient(rcon_ip, rcon_port, passwd=rcon_pword) as h:
     #     resp = h.frag_run("g15_dumpplayer")
-    with open(Path("../../../data/logs/g15_dumpplayer.log"), 'r') as h:
+    with open(Path("../../../../data/logs/g15_dumpplayer.log"), 'r') as h:
         resp = h.read()
 
     _inst = G15DumpPlayer(resp)

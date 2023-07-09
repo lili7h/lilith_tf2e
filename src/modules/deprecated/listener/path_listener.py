@@ -10,6 +10,7 @@ I.e. something like a `console.log` file that grows throughout the process lifet
 """
 import datetime
 import multiprocessing
+import re
 import time
 import os
 import loguru
@@ -17,13 +18,11 @@ import loguru
 from multiprocessing import Queue, Process
 from queue import Empty
 from pathlib import Path
-from typing import Callable
-# from src.modules.tf2e.lobby import TF2Lobby, TF2Player
-from src.modules.listener.status import TF2StatusBlob
-from src.modules.rc.rcon_client import RCONListener
-from src.modules.rc.FragClient import FragClient
-from abc import ABC, abstractmethod
+from src.modules.deprecated.listener.status import TF2StatusBlob
+from src.modules.backend.rc import FragClient
 from enum import Enum
+from typing import Callable
+from src.modules.backend.lobby import TF2Lobby, TF2Player
 
 
 def threaded_watcher(
@@ -83,7 +82,7 @@ def threaded_watcher(
         # on the given fd, otherwise this fails. Since we are reading, we do not impact
         # the external process from achieving a write-lock on the file.
         try:
-            with open(str(watching), read_mode, encoding='utf8') as h:
+            with open(str(watching), read_mode, encoding='utf16', errors='replace') as h:
                 h.seek(_nm_cursor)
                 _inst_new_changes = h.read()
                 _nm_cursor = h.tell()
@@ -165,97 +164,101 @@ class Watchdog:
         return _status
 
 
-class L2Events(Enum):
-    PLAYER_JOINED = "player_joined"
-    PLAYER_LEFT = "player_left"
-    PLAYER_AUTO_BALANCED = "player_auto_balanced"
-    PLAYER_AUTO_ASSIGNED = "player_auto_assigned"
-    PLAYER_ASSIGNED = "player_assigned"
-    PLAYER_SWITCHED = "player_switched_team"
-    JOINED_GAME = "joined_game"
-    LEFT_GAME = "left_game"
+PREFIX_LEN: int = 10
+HST_REGEX: str = r"^hostname:\s*(.+)$"
+VER_REGEX: str = r"^version\s*:\s*(.+)$"
+UDP_REGEX: str = r"^udp/ip\s*:\s*([^:]+):*(.*)$"
+SID_REGEX: str = r"^steamid\s*:\s*(\[.+\])\s+(\(.+\))$"
+ACC_REGEX: str = r"^account\s*:\s*(.*)$"
+MAP_REGEX: str = r"^map\s*:\s*(\S*)(.*)$"
+TAG_REGEX: str = r"^tags\s*:\s*(.*)$"
+PLS_REGEX: str = r"^players\s*:\s*(\d+)\s*humans,\s*(\d+)\s*bots\s*\((\d+)\s*max\)$"
+EDS_PREFIX: str = r"^edicts\s*:\s*(\d+)\s*used\s*of\s*(\d+)\s*max$"
+# No groups
+# list seperator example: # userid name                uniqueid            connected ping loss state
+PLAYER_LIST_SEPARATOR_REGEX: str = r"^#\s+userid\s+name\s+uniqueid\s+connected\s+ping\s+loss\s+state$"
+# Groups ordering:
+# 0: full str, 1: userid, 2: Quote delimited username, 3: SteamID3, 4: time in server, 5: ping, 6: loss, 7: state
+PLAYER_LIST_LINE_REGEX: str = \
+    r'^(#\s+(\d{2,4})\s+(".+")\s+(\[U:\d:\d+\])\s+(\d?:?\d{2}:\d{2})\s+(\d{1,3})\s+(\d{1,3})\s+(\S+))$'
 
 
-# class L2:
-#     sentinel: Watchdog = None
-#     event_handlers: dict[L2Events, Callable[[str, TF2Player | None, TF2Lobby | None], None]] = {
-#         L2Events.PLAYER_JOINED: None,
-#         L2Events.PLAYER_LEFT: None,
-#         L2Events.PLAYER_AUTO_BALANCED: None,
-#         L2Events.PLAYER_AUTO_ASSIGNED: None,
-#         L2Events.PLAYER_ASSIGNED: None,
-#         L2Events.PLAYER_SWITCHED: None,
-#         L2Events.JOINED_GAME: None,
-#         L2Events.LEFT_GAME: None,
-#     }
-#     lobby: TF2Lobby = None
-#
-#     def __init__(self, *args, **kwargs):
-#         self.sentinel = Watchdog(*args, **kwargs)
-#
-#     def init_lobby_data(self, _lobby: TF2Lobby | None) -> None:
-#         if self.lobby is not None:
-#             raise AssertionError("Cannot init lobby data when lobby is not None. (Have you already called this before?)")
-#         self.lobby = _lobby
-#
-#     def _raise_event(self, event: L2Events, event_str: str, player: TF2Player | None) -> None:
-#         """
-#         Doesn't raise an event if self.lobby is still none - need to initialise the lobby value first so it can
-#         map player names appropriately.
-#         :param event: The L2Event enum instance that was triggered by the incoming console stream
-#         :param event_str: The console line that triggered the event instance
-#         :param player: The player name mapped to the event, if applicable.
-#         :return: None
-#         """
-#         if self.lobby is not None or (self.lobby is None and event == L2Events.JOINED_GAME):
-#             _callable = self.event_handlers[event]
-#             if _callable is None:
-#                 return
-#             else:
-#                 _callable(event_str, player, self.lobby)
-#
-#     def register_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
-#         if type(event) is not L2Events:
-#             raise TypeError(f"Event {event} is not of enum L2Events.")
-#         if event not in self.event_handlers:
-#             raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
-#         if self.event_handlers[event] is None:
-#             self.event_handlers[event] = _fn
-#         else:
-#             raise ValueError(f"Event {event} already associated with a handler function "
-#                              f"- use reassign_handler to override")
-#
-#     def reassign_handler(self, event: L2Events, _fn: Callable[[str, TF2Player | None, TF2Lobby | None], None]) -> None:
-#         if type(event) is not L2Events:
-#             raise TypeError(f"Event {event} is not of enum L2Events.")
-#         if event not in self.event_handlers:
-#             raise KeyError(f"Event {event} is not an allowed event to dispatch to.")
-#         if self.event_handlers[event] is not None:
-#             self.event_handlers[event] = _fn
-#         else:
-#             raise ValueError(f"Event {event} does not have an associated handler function "
-#                              f"- use register_handler to set")
+def track_console_against_lobby(
+        lobby: TF2Lobby,
+        tfpath: Path,
+        *,
+        full_start: bool = False
+):
+    """
+    Multithread this with threading.
+    
+    :param tfpath:
+    :param full_start:
+    :param lobby:
+    :return: 
+    """
+    _listener = Watchdog(path=tfpath, full_start=full_start)
+    _listener.begin()
+    regexes = {
+        HST_REGEX: "hostname",
+        VER_REGEX: "none",
+        UDP_REGEX: "gameIp",
+        SID_REGEX: "none",
+        ACC_REGEX: "none",
+        MAP_REGEX: "gameMap",
+        TAG_REGEX: "none",
+        PLS_REGEX: ["int->numPlayers", "none", "int->maxPlayers"],
+        EDS_PREFIX: "none",
+        PLAYER_LIST_SEPARATOR_REGEX: "none",
+        PLAYER_LIST_LINE_REGEX: "__PLAYER__",
+    }
+    while True:
+        _data = _listener.get_update()
+        _lines = _data.split("\n")
+        _cleaned = [x.strip() for x in _lines]
+        for _line in _cleaned:
+            for _k in regexes:
+                if regexes[_k] == "none":
+                    continue
+
+                _match = re.search(_k, _line)
+                if not _match:
+                    continue
+
+                if type(regexes[_k]) is list:
+                    _groups = _match.groups()
+                    for idx, grp in enumerate(_groups):
+                        _attr = regexes[_k][idx]
+                        if _attr == "none":
+                            continue
+                        _caster: Callable = str
+                        if "int->" in _attr:
+                            _caster = int
+                            _attr = _attr.replace("int->", "")
+                        elif "float->" in _attr:
+                            _caster = float
+                            _attr = _attr.replace("float->", "")
+
+                        setattr(lobby, _attr, _caster(grp))
+                else:
+
+                    _attr = regexes[_k]
+                    if _attr == "none":
+                        continue
+
+                    if _attr == "__PLAYER__":
+                        pass
+                    # TODO: finish this
+
+                    _groups = _match.groups()
+                    _caster: Callable = str
+                    if "int->" in _attr:
+                        _caster = int
+                        _attr = _attr.replace("int->", "")
+                    elif "float->" in _attr:
+                        _caster = float
+                        _attr = _attr.replace("float->", "")
+                    setattr(lobby, _attr, _caster(_groups[0]))
 
 
-# Testing purposes only - not intended to function standalone
-def main():
-    _path = Path("D:\\Steam\\steamapps\\common\\Team Fortress 2\\tf\\console.log")
-    _watcher = Watchdog(path=_path)
-    _watcher.begin()
-    # _rcon_handle = RCONListener(pword="lilith_is_hot")
-    # _rcon_handle.spawn_client()
-    # _watcher.get_update()
-    # _resp = _rcon_handle.run("g15_dumpplayer")
-    # _rcon_handle.
-    # print("RESPONSE: ")
-    # print(_resp)
-    rcon_ip = "127.0.0.1"
-    rcon_port = 27015
-    rcon_pword = "lilith_is_hot"
-    with FragClient(rcon_ip, rcon_port, passwd=rcon_pword) as h:
-        resp = h.frag_run("g15_dumpplayer")
-        print(resp)
 
-
-if __name__ == "__main__":
-    main()

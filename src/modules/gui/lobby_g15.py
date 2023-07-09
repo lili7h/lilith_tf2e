@@ -1,18 +1,13 @@
 import json
 import pathlib
-import time
 
 import jsonschema
 
-from src.modules.tf2e.lobby import TF2Player, DummyTF2Player
-from src.modules.gui import G15_LOBBY_VIEWER_VER_STR
-from src.modules.tf2e.main import TF2eLoader
-from src.modules.g15parser.consumer import Team
-from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
-from src.modules.gui.api import MACAPI, get_player_data, get_game_data, get_app_preferences, update_player_data, \
-    update_app_preferences, is_event_registered, register_event_handler
+from src.modules.backend.lobby import TF2Player
+from src.modules.deprecated.tf2e.main import TF2eLoader
+from src.modules.backend.g15parser.consumer import Team
+from src.modules.gui.api import MACAPI, get_game_data
 from src.modules.caching.avatar_cache import AvCache
-from src.modules.tf2e import lobby
 
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -23,7 +18,6 @@ from jsonschema import validate
 from yaml import safe_load
 from steamid_converter import Converter
 
-import tkinter as tk
 import PySimpleGUI as sg
 
 sg.theme("DarkPurple7")
@@ -398,20 +392,17 @@ class G15Viewer:
             layout=[[_combined_columns]]
         )
 
-    def hide_all_graphs(self) -> None:
-        for idx, _g in enumerate(self.graphs_blue):
+    @staticmethod
+    def hide_graphs(graphs: list[sg.Graph], ids_store: list[dict]):
+        for idx, _g in enumerate(graphs):
             _g.update(visible=False)
-            if self.graphs_blue_ids[idx] != {}:
-                for _k in self.graphs_blue_ids[idx]:
-                    _g.delete_figure(self.graphs_blue_ids[idx][_k])
-                self.graphs_blue_ids[idx] = {}
+            for _k in ids_store[idx]:
+                _g.delete_figure(ids_store[idx][_k])
+            ids_store[idx] = {}
 
-        for idx, _g in enumerate(self.graphs_red):
-            _g.update(visible=False)
-            if self.graphs_red_ids[idx] != {}:
-                for _k in self.graphs_red_ids[idx]:
-                    _g.delete_figure(self.graphs_red_ids[idx][_k])
-                self.graphs_red_ids[idx] = {}
+    def hide_all_graphs(self) -> None:
+        self.hide_graphs(self.graphs_blue, self.graphs_blue_ids)
+        self.hide_graphs(self.graphs_red, self.graphs_red_ids)
 
     def build_player_tile(self, graph: sg.Graph, player: dict) -> dict:
         MAX_NAME_LEN = 20

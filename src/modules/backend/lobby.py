@@ -1,20 +1,19 @@
 import datetime
 
+import steam
 from steam import Steam
 from steamid_converter import Converter
-from typing import Self, Any, Literal, Callable
-from src.modules.rc.rcon_client import RCONListener, RCONHelper
+from typing import Self, Any, Callable
+from src.modules.backend.rc.rcon_client import RCONListener, RCONHelper
 from src.modules.caching.avatar_cache import AvCache
-from src.modules.rc.FragClient import FragClient
-from src.modules.g15parser.consumer import do_g15, G15DumpPlayer, Team
-from src.modules.g15parser.helpers import get_player_stats_from_identifier, get_id3_from_iAccountID, PlayerDump
-from src.modules.listener.path_listener import Watchdog
-from src.modules.listener.status import TF2StatusBlob
+from src.modules.backend.g15parser.consumer import do_g15, Team
+from src.modules.backend.g15parser.helpers import get_player_stats_from_identifier, get_id3_from_iAccountID, PlayerDump
+from src.modules.deprecated.listener.path_listener import Watchdog
+from src.modules.deprecated.listener.status import TF2StatusBlob
 from pathlib import Path
 from threading import Thread, Lock
 from abc import ABC, abstractmethod
 
-import copy
 import os
 import re
 import time
@@ -109,58 +108,6 @@ class Phobic(PlayerAssociation):
         return "is LGBTQ-Phobic"
 
 
-class DummyTF2Player:
-    possible_associations: list[PlayerAssociation] = [
-        Cheater(),
-        Suspicious(),
-        Bot(),
-        Phobic(),
-        Neutral(),
-        Trusted(),
-        Friend()
-    ]
-
-    steam: Steam = None
-    steamID: str = "None"
-    steamID3: str = "None"
-    steamID64: str = "None"
-    communityvisibilitystate: int = 0  # Example:3
-    profilestate: int = 0  # Example: 1,
-    personaname: str = "None"  # Example: "The12thChairman",
-    profileurl: str = "None"  # Example: "https://steamcommunity.com/id/the12thchairman/",
-    avatar: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6.jpg",
-    avatarmedium: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6_medium.jpg",
-    avatarfull: str = "None"  # Example: "https://avatars.akamai.steamstatic.com/427ef7d5f8ad7b21678f69bc8afc95786cf38fe6_full.jpg",
-    avatarhash: str = "None"  # Example: "427ef7d5f8ad7b21678f69bc8afc95786cf38fe6",
-    lastlogoff: int = 0  # Example: 1659923870,
-    personastate: int = 0  # Example: 1,
-    primaryclanid: str = "None"  # Example: "103582791429521408",
-    timecreated: int = 0  # Example: 1570311509,
-    personastateflags: int = 0  # Example: 0,
-    loccountrycode: str = "None"  # Example: "US"
-
-    ping: int = 0
-    player_id: str = "None"
-    game_time: int = 0
-    player_state: str = "None"
-    lobby_team: str = "None"  # Example: "TF_GC_TEAM_DEFENDERS"
-    player_type: str = "None"  # Example: "MATCH_PLAYER"
-
-    profile_init: bool = True
-    association: PlayerAssociation = Neutral()
-    game_team: Team = None
-    pl_health: int = None
-    pl_ammo: int = None
-    ig_id: int = None
-    pl_score: int = None
-    pl_deaths: int = None
-
-    dummy_id: int = None
-
-    def __init__(self, dummy_id: int):
-        self.dummy_id = dummy_id
-
-
 class TF2Player:
     possible_associations: list[PlayerAssociation] = [
         Cheater(),
@@ -207,7 +154,8 @@ class TF2Player:
 
     profile_init: bool = None
     association: PlayerAssociation = None
-    dummy_id: int = 0  # real TF2Player instances will always have a 0 dummy id
+
+    last_update: datetime = None
 
     def __init__(self, steam_client: Steam, steam_id3: str):
         self.steamID = Converter.to_steamID(steam_id3)
@@ -227,10 +175,6 @@ class TF2Player:
                 if class_field == "steamid":
                     continue
                 setattr(self, class_field, _response[class_field])
-
-            if self.avatarhash is not None and self.avatarfull is not None:
-                _db = AvCache(Path("NULL"))  # path should be initialised at this point because singleton.
-                _db.cache_image(self.avatarhash, self.avatarfull)
         except IndexError:
             return
 
@@ -243,13 +187,13 @@ class TF2Player:
     def set_from_status(self, status_player_match_groups: tuple[Any, ...]) -> None:
         _groups = status_player_match_groups
         self.player_id = _groups[1]
-        # self.personaname = _groups[2][1:len(self.personaname) - 1]
         self.steamID3 = _groups[3]
         self.steamID = Converter.to_steamID(self.steamID3)
         self.steamID64 = Converter.to_steamID64(self.steamID3)
         self.game_time = _groups[4]
         self.ping = _groups[5]
         self.player_state = _groups[6]
+        self.last_update = datetime.datetime.now()
 
         if not self.profile_init:
             self._lookup_profile()
@@ -265,6 +209,7 @@ class TF2Player:
         self.pl_health = player_dump.health
         self.ig_id = player_dump.ig_id
         self.game_team = player_dump.team
+        self.last_update = datetime.datetime.now()
 
         if not self.profile_init:
             self._lookup_profile()
@@ -280,17 +225,17 @@ class TF2Player:
 
 
 class TF2Lobby:
-    lobby_id: str = None  # 'CTFLobbyShared: ID:00022b29776f570e  24 member(s), 0 pending',
-    player_count: int = None  #
-    pending_players: int = None
     players: list[TF2Player] = None
     exists: bool = None
-    map: str = None
-    server_id: str = None
-    address: tuple[str, int] = None
+
+    gameMap: str = None
+    gameIp: str = None
+    hostname: str = None
+    maxPlayers: int = None
+    numPlayers: int = None
+    gamemode: dict = None
 
     rcon: RCONListener = None
-    rcon_conf: tuple[str, int, str] = None
     steam_: Steam = None
     listener: Watchdog = None
 
@@ -298,18 +243,25 @@ class TF2Lobby:
     update_order: list[Callable] = None
     update_location: int = None
 
-    def __init__(self, players: list[TF2Player], lobby_data: str) -> None:
+    lobby_lock: Lock = None
 
-        self.lobby_lock = Lock()
-        self.players = players
-        self.lobby_id = lobby_data.split("ID:")[1].split()[0]
-        self.player_count = int(lobby_data.split(self.lobby_id)[1].strip().split()[0])
-        self.pending_players = int(lobby_data.split(",")[1].strip().split()[0])
-        self.exists = self.lobby_id != "0000000000000000"
-        self.map = "Unknown"
-        self.server_id = "Unknown"
-        self.address = ("Unknown", 0)
-        self.last_update = datetime.datetime.now()
+    def __init__(self, rcon_client: RCONListener, steam_client: steam.Steam, listener: Watchdog) -> None:
+        self.players: list[TF2Player] = []
+        self.exists: bool = False
+        self.lobby_lock: Lock = Lock()
+
+        self.gameMap: str = "None"
+        self.gameIp: str = "None"
+        self.hostname: str = "None"
+        self.maxPlayers: int = 0
+        self.numPlayers: int = 0
+        self.gamemode: dict = {}
+
+        self.rcon = rcon_client
+        self.steam = steam_client
+        self.listener = listener
+
+        self.last_update: datetime.datetime = datetime.datetime.now()
 
         self.update_order = [
             self.update_from_status,
@@ -328,97 +280,10 @@ class TF2Lobby:
 
         return None
 
-    def set_iclients(self, rcon_client, steam_client) -> None:
-        self.rcon = rcon_client
-        self.rcon_conf = (self.rcon.rcon_ip, self.rcon.rcon_port, self.rcon.rcon_pword)
-        self.steam_ = steam_client
-
-    def connect_listener(self, listener: Watchdog) -> None:
-        self.listener = listener
-
-    def update(self) -> bool:
-        """
-        Update lobby and player data using output from `tf_lobby_debug`, but this is not optimal as this _only_ works
-        in official match-made servers. This also gives somewhat useful team data, but no relevant in game player data
-        like scores, ping, game time, etc...
-
-        :return: True if any modifications were made
-        """
-        data = RCONHelper.get_lobby_data(self.rcon)
-        if data.strip() == "Failed to find lobby shared object":
-            # Went from existing valid lobby to non-existing invalid lobby
-            # e.g. player quit the game
-            if self.exists:
-                with self.lobby_lock:
-                    self.players = []
-                    self.lobby_id = "0000000000000000"
-                    self.player_count = 0
-                    self.pending_players = 0
-                    self.exists = False
-                    loguru.logger.info(f"No longer in valid lobby.")
-                return True
-            else:
-                return False
-        # flag to track if modifications have been made for the return value of this function
-        changes_made: bool = False
-
-        # Regex search the tf_lobby_debug string for SteamID3's
-        found_player_ids = []
-        data_list = data.split("\n")
-        sid_re_match = r"(\[U:\d:\d+\])"
-        for line in data_list[1:]:
-            _search = re.search(sid_re_match, line)
-            if _search is None:
-                continue
-            sid = _search.group()
-            found_player_ids.append(sid)
-            # update existing players lobby status every time we read the tf_lobby_debug str
-            with self.lobby_lock:
-                for _pl in self.players:
-                    if _pl.steamID3 == sid:
-                        _pl.set_lobby_status(line)
-
-        # Find all players in the current self.players list that are not in the tf_lobby_debug string
-        to_remove = []
-        for _player in self.players:
-            if _player.steamID3 not in found_player_ids:
-                to_remove.append(_player)
-
-        # Remove all players previously found from self.players
-        for rem in to_remove:
-            with self.lobby_lock:
-                self.players.remove(rem)
-            changes_made = True
-
-        # Find any players in the tf_lobby_debug string not in the self.players list, and add them.
-        for sid in found_player_ids:
-            if not any(map(lambda x: x.steamID3 == sid, self.players)):
-                with self.lobby_lock:
-                    self.players.append(TF2Player(self.steam_, steam_id3=str(sid)))
-                changes_made = True
-
-        # update lobby metadata from the first line of tf_lobby_debug output
-        lobby_data = data_list[0]
-        with self.lobby_lock:
-            try:
-                self.lobby_id = lobby_data.split("ID:")[1].split()[0]
-                self.player_count = int(lobby_data.split(self.lobby_id)[1].strip().split()[0])
-                self.pending_players = int(lobby_data.split(",")[1].strip().split()[0])
-                self.exists = self.lobby_id != "0000000000000000"
-            except IndexError:
-                loguru.logger.warning(f"Invalid lobby data block received.")
-                pass
-
-        if changes_made:
-            loguru.logger.info(f"Updated lobby with new data.")
-
-        # self.last_update = datetime.datetime.now()
-        return changes_made
-
     def update_from_g15(self):
         """ Update the player entries from a `g15_dumpplayer` command invocation. """
         try:
-            _g15_dump = do_g15(self.rcon_conf)
+            _g15_dump = do_g15(self.rcon)
         except ValueError:
             return
         except IndexError:

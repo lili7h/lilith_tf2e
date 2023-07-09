@@ -1,7 +1,5 @@
 from rcon.source import Client
-from src.modules.rc.proc_reporter import is_hl2_running
-from src.modules.rc.FragClient import FragClient
-
+from src.modules.backend.rc import is_hl2_running
 
 import loguru
 

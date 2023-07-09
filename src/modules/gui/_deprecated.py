@@ -1,17 +1,15 @@
-from src.modules.tf2e.lobby import TF2Player, DummyTF2Player
+from src.modules.backend.lobby import TF2Player, DummyTF2Player
 from src.modules.gui import G15_LOBBY_VIEWER_VER_STR
-from src.modules.tf2e.main import TF2eLoader
-from src.modules.g15parser.consumer import Team
-from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
+from src.modules.deprecated.tf2e.main import TF2eLoader
+from src.modules.backend.g15parser.consumer import Team
+from src.modules.backend.rc import is_hl2_running, get_hl2_pid
 from src.modules.caching.avatar_cache import AvCache
-from src.modules.tf2e import lobby
+from src.modules.backend import lobby
 
 from pathlib import Path
 from datetime import datetime
 from typing import Literal
-from PIL import Image
 
-import tkinter as tk
 import PySimpleGUI as sg
 
 

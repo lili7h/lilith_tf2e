@@ -1,8 +1,8 @@
-from src.modules.tf2e.lobby import TF2Player, DummyTF2Player
-from src.modules.tf2e.main import TF2eLoader
-from src.modules.rc.proc_reporter import is_hl2_running, get_hl2_pid
+from src.modules.backend.lobby import TF2Player, DummyTF2Player
+from src.modules.deprecated.tf2e.main import TF2eLoader
+from src.modules.backend.rc import is_hl2_running, get_hl2_pid
 from pathlib import Path
-from src.modules.tf2e import lobby
+from src.modules.backend import lobby
 from datetime import datetime
 from typing import Literal
 
